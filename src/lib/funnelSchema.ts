@@ -179,3 +179,58 @@ export const blockTemplates = {
     ]
   } as CheckoutData
 };
+
+// Block palette definitions for drag-and-drop editor
+export interface BlockPaletteItem {
+  type: FunnelBlock['type'];
+  name: string;
+  description: string;
+  icon: string;
+  template: HeroData | CTAData | TestimonialsData | CheckoutData;
+}
+
+export const blockPalette: BlockPaletteItem[] = [
+  {
+    type: 'hero',
+    name: 'Hero Section',
+    description: 'Eye-catching header with headline and CTA',
+    icon: '🎯',
+    template: blockTemplates.hero
+  },
+  {
+    type: 'cta',
+    name: 'Call to Action',
+    description: 'Drive conversions with compelling CTAs',
+    icon: '📢',
+    template: blockTemplates.cta
+  },
+  {
+    type: 'testimonials',
+    name: 'Testimonials',
+    description: 'Build trust with customer reviews',
+    icon: '⭐',
+    template: blockTemplates.testimonials
+  },
+  {
+    type: 'checkout',
+    name: 'Checkout',
+    description: 'Payment form and pricing',
+    icon: '💳',
+    template: blockTemplates.checkout
+  }
+];
+
+// Utility function to create a new block
+export function createNewBlock(type: FunnelBlock['type']): FunnelBlock {
+  const template = blockPalette.find(item => item.type === type)?.template;
+  if (!template) {
+    throw new Error(`Unknown block type: ${type}`);
+  }
+  
+  return {
+    id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    type,
+    order: 0, // Will be set when added to funnel
+    data: template
+  };
+}
