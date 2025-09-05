@@ -35,13 +35,25 @@ export default function Checkout({ data, isEditable = false, onUpdate }: Checkou
   };
 
   const handleCheckout = async () => {
-    if (data.stripePriceId) {
-      // In a real app, this would call your Stripe checkout API
-      console.log('Initiating checkout for:', data.productName);
-      // For demo purposes, we'll just show an alert
-      alert(`Checkout initiated for ${data.productName} - $${data.price}`);
-    } else {
-      alert('Stripe integration not configured yet');
+    try {
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.url) {
+        window.location.href = data.url;
+      } else {
+        console.error('Checkout failed:', data.error);
+        alert('Failed to start checkout. Please try again.');
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      alert('Failed to start checkout. Please try again.');
     }
   };
 
@@ -96,7 +108,7 @@ export default function Checkout({ data, isEditable = false, onUpdate }: Checkou
           </div>
           
           <div className="mb-8">
-            <h4 className="text-lg font-semibold text-gray-900 mb-4">What's included:</h4>
+            <h4 className="text-lg font-semibold text-gray-900 mb-4">What&apos;s included:</h4>
             <ul className="space-y-3">
               {data.features.map((feature, index) => (
                 <li key={index} className="flex items-center">
@@ -142,7 +154,7 @@ export default function Checkout({ data, isEditable = false, onUpdate }: Checkou
                 onClick={handleCheckout}
                 className="w-full bg-blue-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors shadow-lg"
               >
-                Get Started Now
+                Buy PitchPilot Premium – $1
               </button>
             )}
             

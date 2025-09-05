@@ -6,9 +6,7 @@ interface Transaction {
   id: string;
   amount: number;
   currency: string;
-  productName: string;
-  timestamp: Date;
-  status: 'completed' | 'pending' | 'failed';
+  createdAt: Date;
 }
 
 interface AgentActivity {
@@ -20,24 +18,9 @@ interface AgentActivity {
 }
 
 export default function DashboardPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    {
-      id: 'txn_1',
-      amount: 1.00,
-      currency: 'USD',
-      productName: 'Demo Funnel Credit',
-      timestamp: new Date(Date.now() - 1000 * 60 * 5),
-      status: 'completed'
-    },
-    {
-      id: 'txn_2',
-      amount: 29.99,
-      currency: 'USD',
-      productName: 'AI Coffee Subscription - Monthly',
-      timestamp: new Date(Date.now() - 1000 * 60 * 15),
-      status: 'completed'
-    }
-  ]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const [agentActivities, setAgentActivities] = useState<AgentActivity[]>([
     {
@@ -70,15 +53,31 @@ export default function DashboardPage() {
     }
   ]);
 
-  const [totalRevenue, setTotalRevenue] = useState(0);
   const [activeFunnels, setActiveFunnels] = useState(3);
   const [conversionRate, setConversionRate] = useState(12.5);
 
+  // Fetch transactions from API
+  const fetchTransactions = async () => {
+    try {
+      const response = await fetch('/api/transactions');
+      const data = await response.json();
+      
+      if (response.ok) {
+        setTransactions(data.transactions.map((t: { id: string; amount: number; currency: string; createdAt: string }) => ({
+          ...t,
+          createdAt: new Date(t.createdAt)
+        })));
+        setTotalRevenue(data.totalRevenue / 100); // Convert from cents to dollars
+      }
+    } catch (error) {
+      console.error('Failed to fetch transactions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const revenue = transactions
-      .filter(t => t.status === 'completed')
-      .reduce((sum, t) => sum + t.amount, 0);
-    setTotalRevenue(revenue);
+    fetchTransactions();
 
     // Simulate real-time updates
     const interval = setInterval(() => {
@@ -106,7 +105,7 @@ export default function DashboardPage() {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [transactions]);
+  }, []);
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat('en-US', {
@@ -145,7 +144,7 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Judge Dashboard</h1>
-          <p className="text-gray-600 mt-2">Real-time view of PitchPilot's AI agents and revenue generation</p>
+          <p className="text-gray-600 mt-2">Real-time view of PitchPilot&apos;s AI agents and revenue generation</p>
         </div>
 
         {/* Stats Cards */}
@@ -197,28 +196,40 @@ export default function DashboardPage() {
           {/* Real-time Transactions */}
           <div className="bg-white rounded-lg shadow">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Live Transactions</h2>
-              <p className="text-sm text-gray-600">Real revenue being generated</p>
+              <h2 className="text-lg font-semibold text-gray-900">Recent Transactions</h2>
+              <p className="text-sm text-gray-600">Last 5 payments received</p>
             </div>
             <div className="p-6">
-              <div className="space-y-4">
-                {transactions.map((transaction) => (
-                  <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-gray-900">{transaction.productName}</p>
-                      <p className="text-sm text-gray-600">{formatTime(transaction.timestamp)}</p>
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-gray-500 mt-2">Loading transactions...</p>
+                </div>
+              ) : transactions.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No transactions yet</p>
+                  <p className="text-sm text-gray-400 mt-1">Complete a purchase to see transactions here</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {transactions.map((transaction) => (
+                    <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-gray-900">PitchPilot Premium</p>
+                        <p className="text-sm text-gray-600">{formatTime(transaction.createdAt)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600">
+                          {formatCurrency(transaction.amount / 100, transaction.currency)}
+                        </p>
+                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full text-green-600 bg-green-100">
+                          completed
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-green-600">
-                        {formatCurrency(transaction.amount, transaction.currency)}
-                      </p>
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(transaction.status)}`}>
-                        {transaction.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -256,20 +267,10 @@ export default function DashboardPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Demo Actions</h2>
           <div className="flex flex-wrap gap-4">
             <button 
-              onClick={() => {
-                const newTransaction: Transaction = {
-                  id: `txn_${Date.now()}`,
-                  amount: 1.00,
-                  currency: 'USD',
-                  productName: 'Demo Purchase',
-                  timestamp: new Date(),
-                  status: 'completed'
-                };
-                setTransactions(prev => [newTransaction, ...prev]);
-              }}
+              onClick={() => fetchTransactions()}
               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
             >
-              Simulate $1 Purchase
+              Refresh Transactions
             </button>
             <button 
               onClick={() => setActiveFunnels(prev => prev + 1)}
