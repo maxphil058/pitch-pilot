@@ -22,20 +22,19 @@ export default function DemoPage() {
 
   const renderBlock = (block: FunnelBlock) => {
     const commonProps = {
-      key: block.id,
       isEditable: isEditing,
       onUpdate: (data: any) => updateBlock(block.id, data)
     };
 
     switch (block.type) {
       case 'hero':
-        return <Hero data={block.data as HeroData} {...commonProps} />;
+        return <Hero key={block.id} data={block.data as HeroData} {...commonProps} />;
       case 'cta':
-        return <CTA data={block.data as CTAData} {...commonProps} />;
+        return <CTA key={block.id} data={block.data as CTAData} {...commonProps} />;
       case 'testimonials':
-        return <Testimonials data={block.data as TestimonialsData} {...commonProps} />;
+        return <Testimonials key={block.id} data={block.data as TestimonialsData} {...commonProps} />;
       case 'checkout':
-        return <Checkout data={block.data as CheckoutData} {...commonProps} />;
+        return <Checkout key={block.id} data={block.data as CheckoutData} {...commonProps} />;
       default:
         return null;
     }
