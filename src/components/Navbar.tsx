@@ -13,6 +13,12 @@ export default function Navbar() {
           
           <div className="flex items-center space-x-8">
             <Link 
+              href="/" 
+              className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+            >
+              Home
+            </Link>
+            <Link 
               href="/demo" 
               className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
             >
