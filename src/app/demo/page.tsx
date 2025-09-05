@@ -85,13 +85,20 @@ export default function DemoPage() {
     }
   };
 
+  // HTML escaping utility
+  const escapeHtml = (text: string): string => {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  };
+
   const exportHTML = () => {
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${funnel.name}</title>
+    <title>${escapeHtml(funnel.name)}</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
@@ -100,22 +107,105 @@ export default function DemoPage() {
       switch (block.type) {
         case 'hero':
           const heroData = block.data as HeroData;
+          const heroHref = heroData.ctaLink || '#';
           return `<section class="relative bg-gradient-to-r from-blue-600 to-purple-700 text-white py-20 px-4">
             <div class="relative max-w-4xl mx-auto text-center">
-              <h1 class="text-4xl md:text-6xl font-bold mb-6">${heroData.headline}</h1>
-              <p class="text-xl md:text-2xl mb-8 text-gray-200">${heroData.subheadline}</p>
-              <a href="${heroData.ctaLink}" class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-colors inline-block">${heroData.ctaText}</a>
+              <h1 class="text-4xl md:text-6xl font-bold mb-6">${escapeHtml(heroData.headline)}</h1>
+              <p class="text-xl md:text-2xl mb-8 text-gray-200">${escapeHtml(heroData.subheadline)}</p>
+              <a href="${escapeHtml(heroHref)}" class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-colors inline-block">${escapeHtml(heroData.ctaText)}</a>
             </div>
           </section>`;
+          
         case 'cta':
           const ctaData = block.data as CTAData;
+          const ctaHref = ctaData.buttonLink || '#';
           return `<section class="py-16 px-4 bg-gray-50">
             <div class="max-w-4xl mx-auto text-center">
-              <h2 class="text-3xl md:text-4xl font-bold mb-6 text-gray-900">${ctaData.title}</h2>
-              <p class="text-lg md:text-xl mb-8 text-gray-600">${ctaData.description}</p>
-              <a href="${ctaData.buttonLink}" class="bg-blue-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors">${ctaData.buttonText}</a>
+              <h2 class="text-3xl md:text-4xl font-bold mb-6 text-gray-900">${escapeHtml(ctaData.title)}</h2>
+              <p class="text-lg md:text-xl mb-8 text-gray-600">${escapeHtml(ctaData.description)}</p>
+              <a href="${escapeHtml(ctaHref)}" class="bg-blue-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors">${escapeHtml(ctaData.buttonText)}</a>
             </div>
           </section>`;
+          
+        case 'testimonials':
+          const testimonialsData = block.data as TestimonialsData;
+          return `<section class="py-16 px-4 bg-white">
+            <div class="max-w-6xl mx-auto">
+              <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold text-gray-900">${escapeHtml(testimonialsData.title)}</h2>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                ${testimonialsData.testimonials.map(testimonial => `
+                  <div class="bg-gray-50 p-6 rounded-lg shadow-sm">
+                    <div class="flex items-center mb-4">
+                      ${Array.from({ length: 5 }, (_, i) => `
+                        <svg class="w-5 h-5 ${i < (testimonial.rating || 5) ? 'text-yellow-400' : 'text-gray-300'}" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      `).join('')}
+                    </div>
+                    <p class="text-gray-700 mb-4">"${escapeHtml(testimonial.content)}"</p>
+                    <div class="flex items-center">
+                      ${testimonial.avatar ? `<img src="${escapeHtml(testimonial.avatar)}" alt="${escapeHtml(testimonial.name)}" class="w-12 h-12 rounded-full mr-4">` : ''}
+                      <div>
+                        <p class="font-semibold text-gray-900">${escapeHtml(testimonial.name)}</p>
+                        <p class="text-sm text-gray-600">${escapeHtml(testimonial.role)}</p>
+                        <p class="text-sm text-gray-600">${escapeHtml(testimonial.company)}</p>
+                      </div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </section>`;
+          
+        case 'checkout':
+          const checkoutData = block.data as CheckoutData;
+          const hasPaymentLink = checkoutData.paymentLink && checkoutData.paymentLink.trim() !== '';
+          const buttonClass = hasPaymentLink 
+            ? 'bg-blue-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors shadow-lg'
+            : 'bg-gray-400 text-gray-600 py-4 px-6 rounded-lg font-semibold text-lg cursor-not-allowed shadow-lg';
+          const buttonText = hasPaymentLink ? 'Get Started Now' : 'Payment Not Available';
+          
+          return `<section id="checkout" class="py-16 px-4 bg-gradient-to-br from-gray-50 to-white">
+            <div class="max-w-2xl mx-auto">
+              <div class="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+                <div class="text-center mb-8">
+                  <h3 class="text-2xl md:text-3xl font-bold text-gray-900 mb-4">${escapeHtml(checkoutData.productName)}</h3>
+                  <div class="flex items-center justify-center mb-4">
+                    <span class="text-4xl font-bold text-blue-600">
+                      ${checkoutData.currency === 'USD' ? '$' : escapeHtml(checkoutData.currency)}${checkoutData.price}
+                    </span>
+                    <span class="text-gray-600 ml-2">/month</span>
+                  </div>
+                  <p class="text-gray-600">${escapeHtml(checkoutData.description)}</p>
+                </div>
+                <div class="mb-8">
+                  <h4 class="text-lg font-semibold text-gray-900 mb-4">What's included:</h4>
+                  <ul class="space-y-3">
+                    ${checkoutData.features.map(feature => `
+                      <li class="flex items-center">
+                        <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        </svg>
+                        <span class="text-gray-700">${escapeHtml(feature)}</span>
+                      </li>
+                    `).join('')}
+                  </ul>
+                </div>
+                <div class="space-y-4">
+                  ${hasPaymentLink 
+                    ? `<a href="${escapeHtml(checkoutData.paymentLink!)}" class="${buttonClass} w-full block text-center">${buttonText}</a>`
+                    : `<button disabled class="${buttonClass} w-full">${buttonText}</button>`
+                  }
+                  <p class="text-center text-sm text-gray-500">
+                    30-day money-back guarantee • Cancel anytime
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>`;
+          
         default:
           return '';
       }

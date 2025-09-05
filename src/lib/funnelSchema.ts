@@ -42,6 +42,7 @@ export interface CheckoutData {
   description: string;
   features: string[];
   stripePriceId?: string;
+  paymentLink?: string;
 }
 
 export interface Funnel {
