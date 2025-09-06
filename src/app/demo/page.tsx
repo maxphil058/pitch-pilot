@@ -29,6 +29,7 @@ export default function DemoPage() {
 
   // Agent state
   const [idea, setIdea] = useState('');
+  const [persona, setPersona] = useState('');
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -298,7 +299,7 @@ export default function DemoPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ idea: idea.trim() }),
+        body: JSON.stringify({ idea: idea.trim(), persona: persona.trim() }),
       });
 
       if (!response.ok) {
@@ -308,47 +309,185 @@ export default function DemoPage() {
       const result = await response.json();
       setAgentResult(result);
 
-      // Bind generated copy to Hero block in live preview
+      // Personalize all blocks from { idea, persona, copy, tweak, script }
       if (result.copy) {
+        // Helper functions
+        const getContrastColor = (bgColor: string) => {
+          const hex = bgColor.replace('#', '');
+          const r = parseInt(hex.substr(0, 2), 16);
+          const g = parseInt(hex.substr(2, 2), 16);
+          const b = parseInt(hex.substr(4, 2), 16);
+          const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+          return brightness > 128 ? '#000000' : '#ffffff';
+        };
+
+        const personaDefault = (persona: string) => {
+          const p = persona.toLowerCase();
+          if (p.includes('entrepreneur') || p.includes('startup')) return 'Start Building';
+          if (p.includes('developer') || p.includes('tech')) return 'Get Access';
+          if (p.includes('marketer') || p.includes('agency')) return 'Boost Results';
+          return 'Get Started';
+        };
+
+        const getPersonaTestimonials = (persona: string, idea: string) => [
+          {
+            name: 'Sarah Chen',
+            role: persona.includes('entrepreneur') ? 'Startup Founder' : 'Product Manager',
+            company: 'TechCorp',
+            content: `${idea} solved exactly what I needed. The results were immediate and impressive.`,
+            rating: 5
+          },
+          {
+            name: 'Marcus Johnson',
+            role: persona.includes('developer') ? 'Senior Developer' : 'Designer',
+            company: 'Creative Studio',
+            content: `Best solution I've tried for this. Clean, effective, and worth every penny.`,
+            rating: 5
+          },
+          {
+            name: 'Emily Rodriguez',
+            role: persona.includes('marketer') ? 'Marketing Director' : 'Business Owner',
+            company: 'InnovateCo',
+            content: `Game-changer for our workflow. Highly recommend to anyone serious about results.`,
+            rating: 5
+          }
+        ];
+
+        const getPersonaFeatures = (persona: string, idea: string) => {
+          const base = ['Instant access', 'No setup required', '30-day guarantee'];
+          if (persona.includes('developer')) return [...base, 'API access', 'Full documentation'];
+          if (persona.includes('marketer')) return [...base, 'Analytics dashboard', 'Campaign templates'];
+          if (persona.includes('entrepreneur')) return [...base, 'Growth tools', 'Expert support'];
+          return [...base, 'Premium features', '24/7 support'];
+        };
+
+        // Compute CTA values
+        const finalCtaText = result.tweak?.ctaText ?? result.copy?.ctaTextPersona ?? personaDefault(persona);
+        const finalCtaColor = result.tweak?.ctaColor ?? '#0EA5E9';
+        const textColor = getContrastColor(finalCtaColor);
+
         setFunnel(prev => {
           const blocks = [...prev.blocks];
-          
-          // Find existing Hero block
+
+          // Ensure blocks exist in order: Hero, CTA, Testimonials, Checkout
           const heroIndex = blocks.findIndex(block => block.type === 'hero');
-          
+          const ctaIndex = blocks.findIndex(block => block.type === 'cta');
+          const testimonialsIndex = blocks.findIndex(block => block.type === 'testimonials');
+          const checkoutIndex = blocks.findIndex(block => block.type === 'checkout');
+
+          // Update or create Hero block
           if (heroIndex >= 0) {
-            // Update existing Hero block
             blocks[heroIndex] = {
               ...blocks[heroIndex],
               data: {
                 ...blocks[heroIndex].data,
                 headline: result.copy.headline,
-                subheadline: result.copy.body
+                subheadline: result.copy.body,
+                ctaText: finalCtaText
               }
             };
           } else {
-            // Create new Hero block at index 0
             const newHero = createNewBlock('hero');
             newHero.data = {
               ...newHero.data,
               headline: result.copy.headline,
-              subheadline: result.copy.body
+              subheadline: result.copy.body,
+              ctaText: finalCtaText,
+              ctaLink: '#checkout'
             };
-            newHero.order = 0;
-            
-            // Insert at beginning and reorder all blocks
             blocks.unshift(newHero);
-            blocks.forEach((block, index) => {
-              block.order = index;
-            });
           }
-          
+
+          // Update or create CTA block
+          if (ctaIndex >= 0) {
+            blocks[ctaIndex] = {
+              ...blocks[ctaIndex],
+              data: {
+                ...blocks[ctaIndex].data,
+                title: `Ready to try ${idea}?`,
+                description: result.copy.body || 'Join thousands who are already succeeding.',
+                buttonText: finalCtaText,
+                buttonLink: '/api/checkout',
+                style: 'primary' as const
+              }
+            };
+          } else {
+            const newCta = createNewBlock('cta');
+            newCta.data = {
+              title: `Ready to try ${idea}?`,
+              description: result.copy.body || 'Join thousands who are already succeeding.',
+              buttonText: finalCtaText,
+              buttonLink: '/api/checkout',
+              style: 'primary' as const
+            };
+            blocks.push(newCta);
+          }
+
+          // Update or create Testimonials block
+          if (testimonialsIndex >= 0) {
+            blocks[testimonialsIndex] = {
+              ...blocks[testimonialsIndex],
+              data: {
+                title: 'What people say',
+                testimonials: result.copy?.testimonials ?? getPersonaTestimonials(persona, idea)
+              }
+            };
+          } else {
+            const newTestimonials = createNewBlock('testimonials');
+            newTestimonials.data = {
+              title: 'What people say',
+              testimonials: result.copy?.testimonials ?? getPersonaTestimonials(persona, idea)
+            };
+            blocks.push(newTestimonials);
+          }
+
+          // Update or create Checkout block
+          if (checkoutIndex >= 0) {
+            blocks[checkoutIndex] = {
+              ...blocks[checkoutIndex],
+              data: {
+                ...blocks[checkoutIndex].data,
+                productName: idea,
+                price: 1,
+                currency: 'USD',
+                description: result.copy.body || 'Instant access.',
+                features: result.copy?.features ?? getPersonaFeatures(persona, idea)
+              }
+            };
+          } else {
+            const newCheckout = createNewBlock('checkout');
+            newCheckout.data = {
+              productName: idea,
+              price: 1,
+              currency: 'USD',
+              description: result.copy.body || 'Instant access.',
+              features: result.copy?.features ?? getPersonaFeatures(persona, idea),
+              paymentLink: '/api/checkout'
+            };
+            blocks.push(newCheckout);
+          }
+
+          // Reorder all blocks
+          blocks.forEach((block, index) => {
+            block.order = index;
+          });
+
           return {
             ...prev,
             blocks,
             updatedAt: new Date()
           };
         });
+
+        // Emit UI done event
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('pitchpilot/ui/done', {
+            detail: { 
+              finalCtaText: finalCtaText, 
+              finalCtaColor: finalCtaColor 
+            }
+          }));
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -609,7 +748,7 @@ export default function DemoPage() {
           <p className="text-sm text-gray-600 mb-6">Generate a complete funnel with AI agents</p>
           
           {/* Startup Idea Input */}
-          <div className="mb-6">
+          <div className="mb-4">
             <label htmlFor="idea" className="block text-sm font-medium text-gray-700 mb-2">
               Startup Idea
             </label>
@@ -619,6 +758,21 @@ export default function DemoPage() {
               onChange={(e) => setIdea(e.target.value)}
               placeholder="e.g., AI Coffee Subscription"
               className="w-full p-3 border border-gray-300 rounded-md text-sm resize-none h-20 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          {/* Persona Input */}
+          <div className="mb-6">
+            <label htmlFor="persona" className="block text-sm font-medium text-gray-700 mb-2">
+              Target Persona
+            </label>
+            <input
+              id="persona"
+              type="text"
+              value={persona}
+              onChange={(e) => setPersona(e.target.value)}
+              placeholder="e.g., entrepreneur, developer, marketer"
+              className="w-full p-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
 
