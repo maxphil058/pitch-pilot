@@ -291,12 +291,22 @@ export function getFinalTheme(funnel: Funnel, tweak?: { ctaColor?: string }): Fi
     };
   }
   
-  // AI mode fallback
-  const aiColor = tweak?.ctaColor ?? '#0EA5E9';
+  // AI mode fallback - only use tweak when theme mode is 'ai'
+  if (theme?.mode === 'ai') {
+    const aiColor = tweak?.ctaColor ?? '#0EA5E9';
+    return {
+      bg: aiColor,
+      ctaBg: aiColor,
+      ctaText: getContrastColor(aiColor)
+    };
+  }
+  
+  // Default fallback when no theme is set
+  const defaultColor = '#0EA5E9';
   return {
-    bg: aiColor,
-    ctaBg: aiColor,
-    ctaText: getContrastColor(aiColor)
+    bg: defaultColor,
+    ctaBg: defaultColor,
+    ctaText: getContrastColor(defaultColor)
   };
 }
 

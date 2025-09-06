@@ -101,38 +101,74 @@ export default function DemoPage() {
     }));
   };
 
-  // Theme functions
+  // Auto-apply theme changes
   useEffect(() => {
     if (themeMode === 'ai') {
       setColorError('');
+      // Apply AI theme immediately
+      setFunnel(prev => ({
+        ...prev,
+        theme: { mode: 'ai', colors: [] },
+        updatedAt: new Date()
+      }));
       return;
     }
     
     const errors: string[] = [];
     
     // Validate primary color
-    if (!normalizeColor(primaryColor)) {
+    const normalizedPrimary = normalizeColor(primaryColor);
+    if (!normalizedPrimary) {
       errors.push('Invalid primary color');
     }
     
     // Validate secondary color for gradients
-    if (themeMode === 'gradient' && !normalizeColor(secondaryColor)) {
-      errors.push('Invalid secondary color');
+    let normalizedSecondary: string | null = null;
+    if (themeMode === 'gradient') {
+      normalizedSecondary = normalizeColor(secondaryColor);
+      if (!normalizedSecondary) {
+        errors.push('Invalid secondary color');
+      }
     }
     
-    setColorError(errors.length > 0 ? errors.join(', ') : '');
-  }, [primaryColor, secondaryColor, themeMode]);
+    if (errors.length > 0) {
+      setColorError(errors.join(', '));
+      return;
+    }
+    
+    setColorError('');
+    
+    // Auto-apply valid theme immediately
+    setFunnel(prev => ({
+      ...prev,
+      theme: {
+        mode: themeMode,
+        colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary || '#8B5CF6'] : [normalizedPrimary!],
+        gradientAngle: themeMode === 'gradient' ? gradientAngle : undefined
+      },
+      updatedAt: new Date()
+    }));
+    
+    // Emit theme change event
+    window.dispatchEvent(new CustomEvent('pitchpilot/ui/done', {
+      detail: { 
+        mode: themeMode, 
+        colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary || '#8B5CF6'] : [normalizedPrimary!],
+        gradientAngle: themeMode === 'gradient' ? gradientAngle : undefined
+      }
+    }));
+  }, [primaryColor, secondaryColor, themeMode, gradientAngle]);
 
   const validateAndApplyTheme = () => {
+    // This function is now optional since auto-apply handles most cases
+    // Kept for manual "Apply" button if needed
     const errors: string[] = [];
     
-    // Validate primary color
     const normalizedPrimary = normalizeColor(primaryColor);
     if (!normalizedPrimary) {
       errors.push('Invalid primary color format');
     }
     
-    // Validate secondary color for gradients
     let normalizedSecondary: string | undefined;
     if (themeMode === 'gradient') {
       normalizedSecondary = normalizeColor(secondaryColor);
@@ -148,22 +184,20 @@ export default function DemoPage() {
     
     setColorError('');
     
-    // Apply theme to funnel
     setFunnel(prev => ({
       ...prev,
       theme: {
         mode: themeMode,
-        colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary!] : [normalizedPrimary!],
+        colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary || '#8B5CF6'] : [normalizedPrimary!],
         gradientAngle: themeMode === 'gradient' ? gradientAngle : undefined
       },
       updatedAt: new Date()
     }));
     
-    // Emit theme change event
     window.dispatchEvent(new CustomEvent('pitchpilot/ui/done', {
       detail: { 
-        themeMode, 
-        colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary!] : [normalizedPrimary!],
+        mode: themeMode, 
+        colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary || '#8B5CF6'] : [normalizedPrimary!],
         gradientAngle: themeMode === 'gradient' ? gradientAngle : undefined
       }
     }));
@@ -588,6 +622,8 @@ export default function DemoPage() {
           return {
             ...prev,
             blocks,
+            // Preserve existing theme unless mode is 'ai'
+            theme: prev.theme?.mode !== 'ai' ? prev.theme : { mode: 'ai', colors: [] },
             updatedAt: new Date()
           };
         });
@@ -1015,13 +1051,13 @@ export default function DemoPage() {
                   </div>
                 )}
 
-                {/* Apply Button */}
+                {/* Optional Apply Button */}
                 <button
                   onClick={validateAndApplyTheme}
                   disabled={!!colorError}
-                  className="w-full bg-purple-600 text-white px-3 py-2 rounded text-xs font-medium hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                  className="w-full bg-gray-500 text-white px-3 py-2 rounded text-xs font-medium hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                 >
-                  Apply Theme
+                  Apply Now (Optional)
                 </button>
               </div>
             )}
