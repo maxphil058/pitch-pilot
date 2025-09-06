@@ -43,6 +43,11 @@ export default function DemoPage() {
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [videoProgress, setVideoProgress] = useState<string>('');
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  
+  // V2 state
+  const [useV2, setUseV2] = useState(false);
+  const [v2Available, setV2Available] = useState(false);
+  const [posterUrl, setPosterUrl] = useState<string>("");
 
   const addBlock = (blockType: FunnelBlock['type']) => {
     const newBlock = createNewBlock(blockType);
@@ -380,7 +385,8 @@ export default function DemoPage() {
       setError(null);
       setTapToPlay(false);
 
-      const response = await fetch('/api/video/generate', {
+      const endpoint = useV2 ? '/api/video/generate-v2' : '/api/video/generate';
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -391,6 +397,36 @@ export default function DemoPage() {
       const data = await response.json();
 
       if (!response.ok || !data?.ok || !data?.file) {
+        // If V2 fails, try fallback to V1
+        if (useV2) {
+          setVideoProgress('V2 failed, trying V1 fallback...');
+          const v1Response = await fetch('/api/video/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ script: agentResult.script }),
+          });
+          
+          const v1Data = await v1Response.json();
+          if (v1Response.ok && v1Data?.ok && v1Data?.file) {
+            setVideoSrc(v1Data.file);
+            setGeneratedVideoUrl(v1Data.file);
+            setPosterUrl("");
+            setVideoProgress('Video generated successfully (V1 fallback)!');
+            
+            await new Promise((r) => setTimeout(r, 50));
+            const el = videoRef.current;
+            if (el) {
+              el.muted = true;
+              (el as any).playsInline = true;
+              el.load();
+              el.play().catch(() => setTapToPlay(true));
+            }
+            return;
+          }
+        }
+        
         throw new Error(data?.error || data?.message || 'Video generation failed');
       }
 
@@ -405,11 +441,15 @@ export default function DemoPage() {
           document.body.removeChild(toast);
         }, 5000);
       } else {
-        setVideoProgress('Video generated successfully!');
+        setVideoProgress(`Video generated successfully${useV2 ? ' (V2)' : ''}!`);
       }
 
       setVideoSrc(data.file);
       setGeneratedVideoUrl(data.file);
+      if (data.poster) {
+        setPosterUrl(data.poster);
+      }
+      
       await new Promise((r) => setTimeout(r, 50)); // allow DOM to bind src
 
       const el = videoRef.current;
@@ -457,6 +497,10 @@ export default function DemoPage() {
           // If videoSrc is empty, set it and attempt play
           if (!videoSrc && fileUrl) {
             setVideoSrc(fileUrl);
+            // Set poster if it's a V2 file
+            if (fileUrl.includes('download-v2')) {
+              setPosterUrl('/api/video/poster-v2');
+            }
             setTimeout(() => {
               const el = videoRef.current;
               if (el) {
@@ -478,9 +522,15 @@ export default function DemoPage() {
     };
   }, [isGeneratingVideo, videoRef]);
 
-  // Check video on mount
+  // Check video and V2 availability on mount
   useEffect(() => {
     checkVideoExists();
+    
+    // Check V2 availability
+    fetch('/api/flags')
+      .then(res => res.json())
+      .then(data => setV2Available(data.VIDEO_V2_ENABLED))
+      .catch(() => setV2Available(false));
   }, []);
 
   return (
@@ -598,6 +648,25 @@ export default function DemoPage() {
                   
                   {/* Video Generation and Playback */}
                   <div className="space-y-2">
+                    {/* V2 Toggle */}
+                    {v2Available && (
+                      <div className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                        <span className="text-sm font-medium text-gray-700">Enhanced Video (V2)</span>
+                        <button
+                          onClick={() => setUseV2(!useV2)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            useV2 ? 'bg-blue-600' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              useV2 ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    )}
+
                     {/* Generate Video Button */}
                     <button
                       onClick={generateVideo}
@@ -608,7 +677,7 @@ export default function DemoPage() {
                           : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       }`}
                     >
-                      {isGeneratingVideo ? 'Generating Video...' : 'Generate Video'}
+                      {isGeneratingVideo ? 'Generating Video...' : `Generate Video${useV2 ? ' (V2)' : ''}`}
                     </button>
 
                     {/* Progress Indicator */}
@@ -639,6 +708,7 @@ export default function DemoPage() {
                       <video
                         ref={videoRef}
                         src={videoSrc || (videoExists ? "/video/demo.mp4" : "")}
+                        poster={posterUrl || undefined}
                         controls
                         muted
                         // @ts-expect-error: playsInline is valid
