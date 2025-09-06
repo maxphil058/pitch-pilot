@@ -389,16 +389,32 @@ export default function DemoPage() {
       }
 
       const result = await response.json();
-      setGeneratedVideoUrl(result.url);
-      setVideoProgress('Video generated successfully!');
-      
-      // Switch video source and play
-      if (videoRef) {
-        videoRef.src = result.url;
-        videoRef.load();
-        setTimeout(() => {
-          videoRef?.play().catch(console.error);
-        }, 500);
+      if (result.ok && result.file) {
+        setGeneratedVideoUrl(result.file);
+        
+        // Show overlay fallback toast if needed
+        if (result.overlayDisabled) {
+          setVideoProgress('Overlay disabled (using safe fallback). Video rendered successfully.');
+          // Show toast notification
+          const toast = document.createElement('div');
+          toast.className = 'fixed top-4 right-4 bg-orange-100 border border-orange-400 text-orange-700 px-4 py-3 rounded shadow-lg z-50';
+          toast.innerHTML = 'Overlay disabled (using safe fallback). Video rendered successfully.';
+          document.body.appendChild(toast);
+          setTimeout(() => {
+            document.body.removeChild(toast);
+          }, 5000);
+        } else {
+          setVideoProgress('Video generated successfully!');
+        }
+        
+        // Switch video source and play
+        if (videoRef) {
+          videoRef.src = result.file;
+          videoRef.load();
+          setTimeout(() => {
+            videoRef?.play().catch(console.error);
+          }, 500);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate video');
@@ -592,22 +608,18 @@ export default function DemoPage() {
                     )}
 
                     {/* Play Demo Video Button (fallback) */}
-                    <button
-                      onClick={playDemoVideo}
-                      disabled={!videoExists || checkingVideo}
-                      className={`w-full px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        videoExists && !checkingVideo
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
-                      title={!videoExists && !checkingVideo ? 'Drop a 30-45s MP4 in /public/video/demo.mp4' : ''}
-                    >
-                      {checkingVideo ? 'Checking Video...' : videoExists ? 'Play Demo Video' : 'Demo Video Missing'}
-                    </button>
+                    {videoExists && (
+                      <button
+                        onClick={playDemoVideo}
+                        className="w-full px-4 py-2 rounded-md text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        Play Demo Video
+                      </button>
+                    )}
                     
                     {!videoExists && !checkingVideo && (
                       <p className="text-xs text-gray-600 text-center">
-                        Drop a 30–45s MP4 in <code className="bg-gray-200 px-1 rounded">/public/video/demo.mp4</code>
+                        Drop a demo file at <code className="bg-gray-200 px-1 rounded">/public/video/demo.mp4</code> or use Generate Video.
                       </p>
                     )}
                     
