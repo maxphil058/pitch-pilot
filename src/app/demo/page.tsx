@@ -61,6 +61,9 @@ export default function DemoPage() {
   const [v2Available, setV2Available] = useState(false);
   const [posterUrl, setPosterUrl] = useState<string | undefined>(undefined);
 
+  // Flags state
+  const [flags, setFlags] = useState({ VIDEO_V2_ENABLED: false, UI_OPTIMIZER_VISIBLE: false });
+
   const addBlock = (blockType: FunnelBlock['type']) => {
     const newBlock = createNewBlock(blockType);
     newBlock.order = funnel.blocks.length;
@@ -901,11 +904,17 @@ export default function DemoPage() {
   useEffect(() => {
     checkVideoExists();
     
-    // Check V2 availability
+    // Check flags availability
     fetch('/api/flags')
       .then(res => res.json())
-      .then(data => setV2Available(data.VIDEO_V2_ENABLED))
-      .catch(() => setV2Available(false));
+      .then(data => {
+        setV2Available(data.VIDEO_V2_ENABLED);
+        setFlags(data);
+      })
+      .catch(() => {
+        setV2Available(false);
+        setFlags({ VIDEO_V2_ENABLED: false, UI_OPTIMIZER_VISIBLE: false });
+      });
   }, []);
 
   // Compute safe video src
@@ -1176,7 +1185,7 @@ export default function DemoPage() {
               )}
 
               {/* UI Tweak */}
-              {agentResult.tweak && (
+              {flags.UI_OPTIMIZER_VISIBLE && agentResult.tweak && (
                 <div className="p-4 bg-purple-50 border border-purple-200 rounded-md">
                   <h3 className="font-medium text-purple-900 mb-2">UI Optimization</h3>
                   <div className="flex items-center space-x-2">
