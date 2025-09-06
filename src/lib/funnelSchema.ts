@@ -67,6 +67,10 @@ export interface Funnel {
     price: number;
     currency: string;
     interval: 'month' | 'year';
+    _temp?: {
+      email?: string;
+      name?: string;
+    };
   };
 }
 

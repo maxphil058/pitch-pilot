@@ -257,7 +257,7 @@ export default function DemoPage() {
       case 'testimonials':
         return <Testimonials key={`${block.id}-${funnel.updatedAt?.getTime()}`} data={block.data as TestimonialsData} {...commonProps} {...themeProps} />;
       case 'checkout':
-        return <Checkout key={`${block.id}-${funnel.updatedAt?.getTime()}`} data={block.data as CheckoutData} funnel={funnel} {...commonProps} {...themeProps} />;
+        return <Checkout key={`${block.id}-${funnel.updatedAt?.getTime()}`} data={block.data as CheckoutData} funnel={funnel} onFunnelUpdate={setFunnel} {...commonProps} {...themeProps} />;
       default:
         return null;
     }

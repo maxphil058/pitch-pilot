@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { CheckoutData, Funnel } from '@/lib/funnelSchema';
 
 interface CheckoutProps {
@@ -7,6 +8,7 @@ interface CheckoutProps {
   isEditable?: boolean;
   onUpdate?: (data: CheckoutData) => void;
   funnel?: Funnel;
+  onFunnelUpdate?: (funnel: Funnel) => void;
   themeStyle?: {
     background?: string;
     ctaBackground?: string;
@@ -14,11 +16,15 @@ interface CheckoutProps {
   };
 }
 
-export default function Checkout({ data, isEditable = false, onUpdate, funnel, themeStyle }: CheckoutProps) {
+export default function Checkout({ data, isEditable = false, onUpdate, funnel, onFunnelUpdate, themeStyle }: CheckoutProps) {
   // Use funnel.checkout as single source of truth for price/currency/interval
   const displayPrice = funnel?.checkout?.price ?? data.price;
   const displayCurrency = funnel?.checkout?.currency ?? data.currency;
   const displayInterval = funnel?.checkout?.interval ?? data.interval;
+  
+  // Buyer details state (transient, not persisted)
+  const [customerEmail, setCustomerEmail] = useState(funnel?.checkout?._temp?.email || '');
+  const [customerName, setCustomerName] = useState(funnel?.checkout?._temp?.name || '');
   
   // Format price with Intl.NumberFormat
   const formatPrice = (price: number, currency: string) => {
@@ -26,6 +32,28 @@ export default function Checkout({ data, isEditable = false, onUpdate, funnel, t
       style: 'currency',
       currency: currency
     }).format(price);
+  };
+  
+  // Update funnel temp fields when inputs change
+  const updateTempField = (field: 'email' | 'name', value: string) => {
+    if (field === 'email') setCustomerEmail(value);
+    if (field === 'name') setCustomerName(value);
+    
+    if (onFunnelUpdate && funnel) {
+      onFunnelUpdate({
+        ...funnel,
+        checkout: {
+          ...funnel.checkout,
+          price: displayPrice,
+          currency: displayCurrency,
+          interval: displayInterval,
+          _temp: {
+            ...funnel.checkout?._temp,
+            [field]: value
+          }
+        }
+      });
+    }
   };
   const handleUpdate = (field: keyof CheckoutData, value: string | number | string[]) => {
     if (onUpdate) {
@@ -56,19 +84,34 @@ export default function Checkout({ data, isEditable = false, onUpdate, funnel, t
 
   const handleCheckout = async () => {
     try {
+      // If paymentLink is present, redirect directly
+      if (data.paymentLink && data.paymentLink.trim() !== '') {
+        window.location.href = data.paymentLink;
+        return;
+      }
+      
+      // Otherwise, POST to /api/checkout with current funnel price data and customer details
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          price: displayPrice,
+          currency: displayCurrency,
+          interval: displayInterval,
+          productName: data.productName,
+          customerEmail: customerEmail.trim() || undefined,
+          customerName: customerName.trim() || undefined
+        })
       });
 
-      const data = await response.json();
+      const result = await response.json();
 
-      if (response.ok && data.url) {
-        window.location.href = data.url;
+      if (response.ok && result.url) {
+        window.location.href = result.url;
       } else {
-        console.error('Checkout failed:', data.error);
+        console.error('Checkout failed:', result.error);
         alert('Failed to start checkout. Please try again.');
       }
     } catch (error) {
@@ -163,16 +206,55 @@ export default function Checkout({ data, isEditable = false, onUpdate, funnel, t
           
           <div className="space-y-4">
             {!isEditable && (
-              <button
-                onClick={handleCheckout}
-                className="w-full py-4 px-6 rounded-lg font-semibold text-lg transition-opacity hover:opacity-90 shadow-lg pp-cta"
-                style={{ 
-                  background: 'var(--pp-cta-bg)', 
-                  color: 'var(--pp-cta-text)' 
-                }}
-              >
-                Get {data.productName} – {formatPrice(displayPrice, displayCurrency)}
-              </button>
+              <div className="space-y-4">
+                {/* Buyer Details Inputs */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Email (optional)
+                    </label>
+                    <input
+                      type="email"
+                      value={customerEmail}
+                      onChange={(e) => updateTempField('email', e.target.value)}
+                      placeholder="your@email.com"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent outline-none transition-all"
+                      style={{
+                        '--tw-ring-color': 'var(--pp-cta-bg)',
+                        borderColor: customerEmail ? 'var(--pp-cta-bg)' : undefined
+                      } as React.CSSProperties}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Name (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => updateTempField('name', e.target.value)}
+                      placeholder="Your name"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent outline-none transition-all"
+                      style={{
+                        '--tw-ring-color': 'var(--pp-cta-bg)',
+                        borderColor: customerName ? 'var(--pp-cta-bg)' : undefined
+                      } as React.CSSProperties}
+                    />
+                  </div>
+                </div>
+                
+                {/* Buy Now Button */}
+                <button
+                  onClick={handleCheckout}
+                  className="w-full py-4 px-6 rounded-lg font-semibold text-lg transition-opacity hover:opacity-90 shadow-lg pp-cta"
+                  style={{ 
+                    background: 'var(--pp-cta-bg)', 
+                    color: 'var(--pp-cta-text)' 
+                  }}
+                >
+                  Get {data.productName} – {formatPrice(displayPrice, displayCurrency)}
+                </button>
+              </div>
             )}
             
             {isEditable && (
