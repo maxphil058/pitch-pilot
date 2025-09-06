@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Funnel, FunnelBlock, HeroData, CTAData, TestimonialsData, CheckoutData, blockPalette, createNewBlock } from '@/lib/funnelSchema';
+import { Funnel, FunnelBlock, HeroData, CTAData, TestimonialsData, CheckoutData, blockPalette, createNewBlock, Theme, ThemeMode, normalizeColor, getFinalTheme } from '@/lib/funnelSchema';
 import Hero from '@/components/blocks/Hero';
 import CTA from '@/components/blocks/CTA';
 import Testimonials from '@/components/blocks/Testimonials';
@@ -33,6 +33,13 @@ export default function DemoPage() {
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Theme state
+  const [themeMode, setThemeMode] = useState<ThemeMode>('ai');
+  const [primaryColor, setPrimaryColor] = useState('#0EA5E9');
+  const [secondaryColor, setSecondaryColor] = useState('#8B5CF6');
+  const [gradientAngle, setGradientAngle] = useState(90);
+  const [colorError, setColorError] = useState<string | null>(null);
 
   // Video state
   const [videoExists, setVideoExists] = useState(false);
@@ -94,21 +101,108 @@ export default function DemoPage() {
     }));
   };
 
+  // Theme functions
+  useEffect(() => {
+    if (themeMode === 'ai') {
+      setColorError('');
+      return;
+    }
+    
+    const errors: string[] = [];
+    
+    // Validate primary color
+    if (!normalizeColor(primaryColor)) {
+      errors.push('Invalid primary color');
+    }
+    
+    // Validate secondary color for gradients
+    if (themeMode === 'gradient' && !normalizeColor(secondaryColor)) {
+      errors.push('Invalid secondary color');
+    }
+    
+    setColorError(errors.length > 0 ? errors.join(', ') : '');
+  }, [primaryColor, secondaryColor, themeMode]);
+
+  const validateAndApplyTheme = () => {
+    const errors: string[] = [];
+    
+    // Validate primary color
+    const normalizedPrimary = normalizeColor(primaryColor);
+    if (!normalizedPrimary) {
+      errors.push('Invalid primary color format');
+    }
+    
+    // Validate secondary color for gradients
+    let normalizedSecondary: string | undefined;
+    if (themeMode === 'gradient') {
+      normalizedSecondary = normalizeColor(secondaryColor);
+      if (!normalizedSecondary) {
+        errors.push('Invalid secondary color format');
+      }
+    }
+    
+    if (errors.length > 0) {
+      setColorError(errors.join(', '));
+      return;
+    }
+    
+    setColorError('');
+    
+    // Apply theme to funnel
+    setFunnel(prev => ({
+      ...prev,
+      theme: {
+        mode: themeMode,
+        colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary!] : [normalizedPrimary!],
+        gradientAngle: themeMode === 'gradient' ? gradientAngle : undefined
+      },
+      updatedAt: new Date()
+    }));
+    
+    // Emit theme change event
+    window.dispatchEvent(new CustomEvent('pitchpilot/ui/done', {
+      detail: { 
+        themeMode, 
+        colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary!] : [normalizedPrimary!],
+        gradientAngle: themeMode === 'gradient' ? gradientAngle : undefined
+      }
+    }));
+  };
+
+  const resetToAITheme = () => {
+    setThemeMode('ai');
+    setFunnel(prev => ({
+      ...prev,
+      theme: { mode: 'ai', colors: [] },
+      updatedAt: new Date()
+    }));
+  };
+
   const renderBlock = (block: FunnelBlock, isPreview: boolean = false) => {
+    const finalTheme = getFinalTheme(funnel, agentResult?.tweak);
+    
     const commonProps = {
       isEditable: !isPreview,
       onUpdate: (data: any) => updateBlock(block.id, data)
     };
 
+    const themeProps = {
+      themeStyle: {
+        background: finalTheme.bg,
+        ctaBackground: finalTheme.ctaBg,
+        ctaColor: finalTheme.ctaText
+      }
+    };
+
     switch (block.type) {
       case 'hero':
-        return <Hero key={block.id} data={block.data as HeroData} {...commonProps} />;
+        return <Hero key={block.id} data={block.data as HeroData} {...commonProps} {...themeProps} />;
       case 'cta':
-        return <CTA key={block.id} data={block.data as CTAData} {...commonProps} />;
+        return <CTA key={block.id} data={block.data as CTAData} {...commonProps} {...themeProps} />;
       case 'testimonials':
-        return <Testimonials key={block.id} data={block.data as TestimonialsData} {...commonProps} />;
+        return <Testimonials key={block.id} data={block.data as TestimonialsData} {...commonProps} {...themeProps} />;
       case 'checkout':
-        return <Checkout key={block.id} data={block.data as CheckoutData} {...commonProps} />;
+        return <Checkout key={block.id} data={block.data as CheckoutData} {...commonProps} {...themeProps} />;
       default:
         return null;
     }
@@ -122,6 +216,8 @@ export default function DemoPage() {
   };
 
   const exportHTML = () => {
+    const finalTheme = getFinalTheme(funnel, agentResult?.tweak);
+    
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -129,19 +225,36 @@ export default function DemoPage() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${escapeHtml(funnel.name)}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        --pp-cta-bg: ${finalTheme.ctaBg};
+        --pp-cta-text: ${finalTheme.ctaText};
+        --pp-bg: ${finalTheme.bg};
+      }
+      .pp-cta {
+        background: var(--pp-cta-bg) !important;
+        color: var(--pp-cta-text) !important;
+      }
+      .pp-page {
+        background: var(--pp-bg);
+      }
+      .pp-hero-bg {
+        background: var(--pp-bg);
+      }
+    </style>
 </head>
-<body>
+<body class="pp-page">
     ${funnel.blocks.sort((a, b) => a.order - b.order).map(block => {
       // Generate static HTML for each block type
       switch (block.type) {
         case 'hero':
           const heroData = block.data as HeroData;
           const heroHref = heroData.ctaLink || '#';
-          return `<section class="relative bg-gradient-to-r from-blue-600 to-purple-700 text-white py-20 px-4">
+          return `<section class="relative pp-hero-bg text-white py-20 px-4">
             <div class="relative max-w-4xl mx-auto text-center">
               <h1 class="text-4xl md:text-6xl font-bold mb-6">${escapeHtml(heroData.headline)}</h1>
               <p class="text-xl md:text-2xl mb-8 text-gray-200">${escapeHtml(heroData.subheadline)}</p>
-              <a href="${escapeHtml(heroHref)}" class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-colors inline-block">${escapeHtml(heroData.ctaText)}</a>
+              <a href="${escapeHtml(heroHref)}" class="pp-cta px-8 py-4 rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity inline-block">${escapeHtml(heroData.ctaText)}</a>
             </div>
           </section>`;
           
@@ -152,7 +265,7 @@ export default function DemoPage() {
             <div class="max-w-4xl mx-auto text-center">
               <h2 class="text-3xl md:text-4xl font-bold mb-6 text-gray-900">${escapeHtml(ctaData.title)}</h2>
               <p class="text-lg md:text-xl mb-8 text-gray-600">${escapeHtml(ctaData.description)}</p>
-              <a href="${escapeHtml(ctaHref)}" class="bg-blue-600 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors">${escapeHtml(ctaData.buttonText)}</a>
+              <a href="${escapeHtml(ctaHref)}" class="pp-cta px-8 py-4 rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity">${escapeHtml(ctaData.buttonText)}</a>
             </div>
           </section>`;
           
@@ -224,8 +337,8 @@ export default function DemoPage() {
                 </div>
                 <div class="space-y-4">
                   ${hasPaymentLink 
-                    ? `<a href="${escapeHtml(checkoutData.paymentLink!)}" class="${buttonClass} w-full block text-center">${buttonText}</a>`
-                    : `<button disabled class="${buttonClass} w-full">${buttonText}</button>`
+                    ? `<a href="${escapeHtml(checkoutData.paymentLink!)}" class="pp-cta w-full block text-center py-4 px-6 rounded-lg font-semibold text-lg hover:opacity-90 transition-opacity shadow-lg">${buttonText}</a>`
+                    : `<button disabled class="bg-gray-400 text-gray-600 py-4 px-6 rounded-lg font-semibold text-lg cursor-not-allowed shadow-lg w-full">${buttonText}</button>`
                   }
                   <p class="text-center text-sm text-gray-500">
                     30-day money-back guarantee • Cancel anytime
@@ -774,6 +887,154 @@ export default function DemoPage() {
               placeholder="e.g., entrepreneur, developer, marketer"
               className="w-full p-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+          </div>
+
+          {/* Theme & Colors Panel */}
+          <div className="mb-6 p-4 border border-gray-200 rounded-md bg-gray-50">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Theme & Colors</h3>
+            
+            {/* Theme Mode Radio */}
+            <div className="space-y-2 mb-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="themeMode"
+                  value="ai"
+                  checked={themeMode === 'ai'}
+                  onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
+                  className="mr-2"
+                />
+                <span className="text-sm">Use AI colors</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="themeMode"
+                  value="solid"
+                  checked={themeMode === 'solid'}
+                  onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
+                  className="mr-2"
+                />
+                <span className="text-sm">Solid color</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="themeMode"
+                  value="gradient"
+                  checked={themeMode === 'gradient'}
+                  onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
+                  className="mr-2"
+                />
+                <span className="text-sm">Gradient</span>
+              </label>
+            </div>
+
+            {/* Color Controls */}
+            {themeMode !== 'ai' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Primary Color
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="color"
+                      value={primaryColor}
+                      onChange={(e) => setPrimaryColor(e.target.value)}
+                      className="w-8 h-8 rounded border border-gray-300"
+                    />
+                    <input
+                      type="text"
+                      value={primaryColor}
+                      onChange={(e) => setPrimaryColor(e.target.value)}
+                      placeholder="#0EA5E9"
+                      className="flex-1 p-2 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {themeMode === 'gradient' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Secondary Color
+                      </label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="color"
+                          value={secondaryColor}
+                          onChange={(e) => setSecondaryColor(e.target.value)}
+                          className="w-8 h-8 rounded border border-gray-300"
+                        />
+                        <input
+                          type="text"
+                          value={secondaryColor}
+                          onChange={(e) => setSecondaryColor(e.target.value)}
+                          placeholder="#8B5CF6"
+                          className="flex-1 p-2 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Angle: {gradientAngle}°
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="360"
+                        value={gradientAngle}
+                        onChange={(e) => setGradientAngle(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Live Preview Swatch */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Preview
+                  </label>
+                  <div
+                    className="w-full h-8 rounded border border-gray-300"
+                    style={{
+                      background: themeMode === 'solid' 
+                        ? primaryColor 
+                        : `linear-gradient(${gradientAngle}deg, ${primaryColor}, ${secondaryColor})`
+                    }}
+                  />
+                </div>
+
+                {/* Error Display */}
+                {colorError && (
+                  <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
+                    {colorError}
+                  </div>
+                )}
+
+                {/* Apply Button */}
+                <button
+                  onClick={validateAndApplyTheme}
+                  disabled={!!colorError}
+                  className="w-full bg-purple-600 text-white px-3 py-2 rounded text-xs font-medium hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                >
+                  Apply Theme
+                </button>
+              </div>
+            )}
+
+            {/* Reset to AI Button */}
+            {themeMode !== 'ai' && (
+              <button
+                onClick={resetToAITheme}
+                className="w-full mt-2 bg-gray-500 text-white px-3 py-2 rounded text-xs font-medium hover:bg-gray-600 transition-colors"
+              >
+                Reset to AI Colors
+              </button>
+            )}
           </div>
 
           {/* Generate Button */}

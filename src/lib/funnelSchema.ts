@@ -45,6 +45,14 @@ export interface CheckoutData {
   paymentLink?: string;
 }
 
+export type ThemeMode = "ai" | "solid" | "gradient";
+
+export interface Theme {
+  mode: ThemeMode;
+  colors: string[]; // hex strings
+  angle?: number; // for gradients, 0-360 degrees
+}
+
 export interface Funnel {
   id: string;
   name: string;
@@ -53,6 +61,7 @@ export interface Funnel {
   createdAt: Date;
   updatedAt: Date;
   isPublished: boolean;
+  theme?: Theme;
 }
 
 // Sample funnel data for demo
@@ -220,6 +229,76 @@ export const blockPalette: BlockPaletteItem[] = [
     template: blockTemplates.checkout
   }
 ];
+
+// Theme helper functions
+export function normalizeColor(color: string): string | null {
+  const trimmed = color.trim();
+  if (!trimmed) return null;
+  
+  // Add # if missing
+  const withHash = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  
+  // Expand 3-digit hex to 6-digit
+  if (/^#[0-9A-Fa-f]{3}$/.test(withHash)) {
+    return `#${withHash[1]}${withHash[1]}${withHash[2]}${withHash[2]}${withHash[3]}${withHash[3]}`;
+  }
+  
+  // Validate 6-digit hex
+  if (/^#[0-9A-Fa-f]{6}$/.test(withHash)) {
+    return withHash.toUpperCase();
+  }
+  
+  return null;
+}
+
+export function getContrastColor(bgColor: string): string {
+  const hex = bgColor.replace('#', '');
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+  
+  // WCAG luminance calculation
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#000000' : '#FFFFFF';
+}
+
+export interface FinalTheme {
+  bg: string;
+  ctaBg: string;
+  ctaText: string;
+}
+
+export function getFinalTheme(funnel: Funnel, tweak?: { ctaColor?: string }): FinalTheme {
+  const theme = funnel.theme;
+  
+  if (theme?.mode === 'solid' && theme.colors.length > 0) {
+    const color = theme.colors[0];
+    return {
+      bg: color,
+      ctaBg: color,
+      ctaText: getContrastColor(color)
+    };
+  }
+  
+  if (theme?.mode === 'gradient' && theme.colors.length >= 2) {
+    const angle = theme.angle ?? 90;
+    const gradient = `linear-gradient(${angle}deg, ${theme.colors.join(', ')})`;
+    const firstColor = theme.colors[0];
+    return {
+      bg: gradient,
+      ctaBg: firstColor,
+      ctaText: getContrastColor(firstColor)
+    };
+  }
+  
+  // AI mode fallback
+  const aiColor = tweak?.ctaColor ?? '#0EA5E9';
+  return {
+    bg: aiColor,
+    ctaBg: aiColor,
+    ctaText: getContrastColor(aiColor)
+  };
+}
 
 // Utility function to create a new block
 export function createNewBlock(type: FunnelBlock['type']): FunnelBlock {
