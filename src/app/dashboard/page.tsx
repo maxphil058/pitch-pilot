@@ -17,6 +17,13 @@ interface AgentActivity {
   status: 'active' | 'completed' | 'error';
 }
 
+interface MeshEvent {
+  topic: string;
+  payload: any;
+  time: string;
+  type?: string;
+}
+
 export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [totalRevenue, setTotalRevenue] = useState(0);
@@ -55,6 +62,8 @@ export default function DashboardPage() {
 
   const [activeFunnels, setActiveFunnels] = useState(3);
   const [conversionRate, setConversionRate] = useState(12.5);
+  const [meshEvents, setMeshEvents] = useState<MeshEvent[]>([]);
+  const [meshConnected, setMeshConnected] = useState(false);
 
   // Fetch transactions from API
   const fetchTransactions = async () => {
@@ -75,6 +84,40 @@ export default function DashboardPage() {
       setLoading(false);
     }
   };
+
+  // Connect to mesh event stream
+  useEffect(() => {
+    const eventSource = new EventSource('/api/mesh/stream');
+    
+    eventSource.onopen = () => {
+      setMeshConnected(true);
+    };
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'connected') {
+          setMeshConnected(true);
+        } else if (data.type === 'heartbeat') {
+          // Handle heartbeat silently
+        } else {
+          // Regular mesh event
+          setMeshEvents(prev => [data, ...prev.slice(0, 199)]); // Cap at 200 events
+        }
+      } catch (error) {
+        console.error('Error parsing mesh event:', error);
+      }
+    };
+    
+    eventSource.onerror = () => {
+      setMeshConnected(false);
+    };
+    
+    return () => {
+      eventSource.close();
+    };
+  }, []);
 
   useEffect(() => {
     fetchTransactions();
@@ -106,6 +149,27 @@ export default function DashboardPage() {
 
     return () => clearInterval(interval);
   }, []);
+
+  const sendTestEvent = async () => {
+    try {
+      const response = await fetch('/api/mesh/publish', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topic: 'pitchpilot/test',
+          payload: { hello: 'world' }
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to send test event');
+      }
+    } catch (error) {
+      console.error('Error sending test event:', error);
+    }
+  };
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat('en-US', {
@@ -233,30 +297,50 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Solace Agent Mesh Activity */}
+          {/* Agent Log Panel */}
           <div className="bg-white rounded-lg shadow">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Solace Agent Mesh</h2>
-              <p className="text-sm text-gray-600">Distributed AI agents working in real-time</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Agent Mesh Log</h2>
+                  <p className="text-sm text-gray-600">Real-time event stream</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full ${meshConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <span className="text-sm text-gray-600">
+                    {meshConnected ? 'Connected' : 'Disconnected'}
+                  </span>
+                </div>
+              </div>
             </div>
             <div className="p-6">
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {agentActivities.map((activity) => (
-                  <div key={activity.id} className="flex items-start space-x-3">
-                    <div className={`w-3 h-3 rounded-full mt-1 ${
-                      activity.status === 'active' ? 'bg-blue-500 animate-pulse' : 
-                      activity.status === 'completed' ? 'bg-green-500' : 'bg-red-500'
-                    }`}></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{activity.agent}</p>
-                      <p className="text-sm text-gray-600">{activity.action}</p>
-                      <p className="text-xs text-gray-400">{formatTime(activity.timestamp)}</p>
-                    </div>
-                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(activity.status)}`}>
-                      {activity.status}
-                    </span>
+              <div className="mb-4">
+                <button
+                  onClick={sendTestEvent}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm"
+                >
+                  Send Test Event
+                </button>
+              </div>
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {meshEvents.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">No events yet</p>
+                    <p className="text-sm text-gray-400 mt-1">Click &quot;Send Test Event&quot; to see events here</p>
                   </div>
-                ))}
+                ) : (
+                  meshEvents.map((event, index) => (
+                    <div key={index} className="bg-gray-50 p-3 rounded-lg text-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-blue-600">{event.topic}</span>
+                        <span className="text-xs text-gray-500">{new Date(event.time).toLocaleTimeString()}</span>
+                      </div>
+                      <pre className="text-xs text-gray-700 whitespace-pre-wrap overflow-x-auto">
+                        {JSON.stringify(event.payload, null, 2)}
+                      </pre>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
