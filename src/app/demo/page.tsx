@@ -36,7 +36,7 @@ export default function DemoPage() {
   // Video state
   const [videoExists, setVideoExists] = useState(false);
   const [checkingVideo, setCheckingVideo] = useState(true);
-  const [videoSrc, setVideoSrc] = useState<string>("");
+  const [videoSrc, setVideoSrc] = useState<string | undefined>(undefined);
   const [generating, setGenerating] = useState(false);
   const [tapToPlay, setTapToPlay] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -47,7 +47,7 @@ export default function DemoPage() {
   // V2 state
   const [useV2, setUseV2] = useState(false);
   const [v2Available, setV2Available] = useState(false);
-  const [posterUrl, setPosterUrl] = useState<string>("");
+  const [posterUrl, setPosterUrl] = useState<string | undefined>(undefined);
 
   const addBlock = (blockType: FunnelBlock['type']) => {
     const newBlock = createNewBlock(blockType);
@@ -307,6 +307,49 @@ export default function DemoPage() {
 
       const result = await response.json();
       setAgentResult(result);
+
+      // Bind generated copy to Hero block in live preview
+      if (result.copy) {
+        setFunnel(prev => {
+          const blocks = [...prev.blocks];
+          
+          // Find existing Hero block
+          const heroIndex = blocks.findIndex(block => block.type === 'hero');
+          
+          if (heroIndex >= 0) {
+            // Update existing Hero block
+            blocks[heroIndex] = {
+              ...blocks[heroIndex],
+              data: {
+                ...blocks[heroIndex].data,
+                headline: result.copy.headline,
+                subheadline: result.copy.body
+              }
+            };
+          } else {
+            // Create new Hero block at index 0
+            const newHero = createNewBlock('hero');
+            newHero.data = {
+              ...newHero.data,
+              headline: result.copy.headline,
+              subheadline: result.copy.body
+            };
+            newHero.order = 0;
+            
+            // Insert at beginning and reorder all blocks
+            blocks.unshift(newHero);
+            blocks.forEach((block, index) => {
+              block.order = index;
+            });
+          }
+          
+          return {
+            ...prev,
+            blocks,
+            updatedAt: new Date()
+          };
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -412,7 +455,7 @@ export default function DemoPage() {
           if (v1Response.ok && v1Data?.ok && v1Data?.file) {
             setVideoSrc(v1Data.file);
             setGeneratedVideoUrl(v1Data.file);
-            setPosterUrl("");
+            setPosterUrl(undefined);
             setVideoProgress('Video generated successfully (V1 fallback)!');
             
             await new Promise((r) => setTimeout(r, 50));
@@ -532,6 +575,9 @@ export default function DemoPage() {
       .then(data => setV2Available(data.VIDEO_V2_ENABLED))
       .catch(() => setV2Available(false));
   }, []);
+
+  // Compute safe video src
+  const resolvedSrc = videoSrc ?? (videoExists ? "/video/demo.mp4" : undefined);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -705,18 +751,19 @@ export default function DemoPage() {
                     
                     {/* Video Element */}
                     <div className="space-y-2">
-                      <video
-                        ref={videoRef}
-                        src={videoSrc || (videoExists ? "/video/demo.mp4" : "")}
-                        poster={posterUrl || undefined}
-                        controls
-                        muted
-                        // @ts-expect-error: playsInline is valid
-                        playsInline
-                        preload="auto"
-                        className="w-full aspect-video rounded-xl shadow"
-                        style={{ display: (videoSrc || videoExists || generatedVideoUrl) ? 'block' : 'none' }}
-                      />
+                      {resolvedSrc ? (
+                        <video
+                          ref={videoRef}
+                          src={resolvedSrc}
+                          poster={posterUrl || undefined}
+                          controls
+                          muted
+                          // @ts-expect-error: playsInline is valid
+                          playsInline
+                          preload="auto"
+                          className="w-full aspect-video rounded-xl shadow"
+                        />
+                      ) : null}
                       {tapToPlay && (
                         <button
                           onClick={() => {
@@ -780,7 +827,7 @@ export default function DemoPage() {
         {/* Middle Panel - Canvas */}
         <div className="flex-1 bg-gray-100 p-6 overflow-y-auto">
           <div className="mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Canvas</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Canvas</h2>
             <p className="text-sm text-gray-600">Drop blocks here and reorder them</p>
           </div>
 
