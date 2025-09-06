@@ -988,7 +988,7 @@ export default function DemoPage() {
               value={idea}
               onChange={(e) => setIdea(e.target.value)}
               placeholder="e.g., AI Coffee Subscription"
-              className="w-full p-3 border border-gray-300 rounded-md text-sm resize-none h-20 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-md text-sm resize-none h-20 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black placeholder-gray-400"
             />
           </div>
 
@@ -1003,13 +1003,13 @@ export default function DemoPage() {
               value={persona}
               onChange={(e) => setPersona(e.target.value)}
               placeholder="e.g., entrepreneur, developer, marketer"
-              className="w-full p-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black placeholder-gray-400"
             />
           </div>
 
           {/* Theme & Colors Panel */}
           <div className="mb-6 p-4 border border-gray-200 rounded-md bg-gray-50">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Theme & Colors</h3>
+            <h3 className="text-sm font-semibold text-black mb-3">Theme & Colors</h3>
             
             {/* Theme Mode Radio */}
             <div className="space-y-2 mb-4">
@@ -1022,7 +1022,7 @@ export default function DemoPage() {
                   onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
                   className="mr-2"
                 />
-                <span className="text-sm">Use AI colors</span>
+                <span className="text-sm text-black">Use AI colors</span>
               </label>
               <label className="flex items-center">
                 <input
@@ -1033,7 +1033,7 @@ export default function DemoPage() {
                   onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
                   className="mr-2"
                 />
-                <span className="text-sm">Solid color</span>
+                <span className="text-sm text-black">Solid color</span>
               </label>
               <label className="flex items-center">
                 <input
@@ -1044,7 +1044,7 @@ export default function DemoPage() {
                   onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
                   className="mr-2"
                 />
-                <span className="text-sm">Gradient</span>
+                <span className="text-sm text-black">Gradient</span>
               </label>
             </div>
 
@@ -1052,7 +1052,7 @@ export default function DemoPage() {
             {themeMode !== 'ai' && (
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-black mb-1">
                     Primary Color
                   </label>
                   <div className="flex items-center space-x-2">
@@ -1067,7 +1067,7 @@ export default function DemoPage() {
                       value={primaryColor}
                       onChange={(e) => setPrimaryColor(e.target.value)}
                       placeholder="#0EA5E9"
-                      className="flex-1 p-2 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 p-2 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black placeholder-gray-400"
                     />
                   </div>
                 </div>
@@ -1075,7 +1075,7 @@ export default function DemoPage() {
                 {themeMode === 'gradient' && (
                   <>
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-black mb-1">
                         Secondary Color
                       </label>
                       <div className="flex items-center space-x-2">
@@ -1090,13 +1090,13 @@ export default function DemoPage() {
                           value={secondaryColor}
                           onChange={(e) => setSecondaryColor(e.target.value)}
                           placeholder="#8B5CF6"
-                          className="flex-1 p-2 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          className="flex-1 p-2 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black placeholder-gray-400"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-black mb-1">
                         Angle: {gradientAngle}°
                       </label>
                       <input
@@ -1113,7 +1113,7 @@ export default function DemoPage() {
 
                 {/* Live Preview Swatch */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-black mb-1">
                     Preview
                   </label>
                   <div
@@ -1175,7 +1175,7 @@ export default function DemoPage() {
                   }}
                   min="0"
                   step="0.01"
-                  className={`w-full p-2 text-xs border rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
+                  className={`w-full p-2 text-xs border rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black placeholder-gray-400 ${
                     priceError ? 'border-red-300 bg-red-50' : 'border-gray-300'
                   }`}
                 />
@@ -1202,7 +1202,7 @@ export default function DemoPage() {
                       updatedAt: new Date()
                     }));
                   }}
-                  className="w-full p-2 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-2 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-black placeholder-gray-400"
                 >
                   <option value="month">Monthly</option>
                   <option value="year">Yearly</option>

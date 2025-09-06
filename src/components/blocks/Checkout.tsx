@@ -218,7 +218,7 @@ export default function Checkout({ data, isEditable = false, onUpdate, funnel, o
                       value={customerEmail}
                       onChange={(e) => updateTempField('email', e.target.value)}
                       placeholder="your@email.com"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent outline-none transition-all"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent outline-none transition-all text-black placeholder-gray-400"
                       style={{
                         '--tw-ring-color': 'var(--pp-cta-bg)',
                         borderColor: customerEmail ? 'var(--pp-cta-bg)' : undefined
@@ -234,7 +234,7 @@ export default function Checkout({ data, isEditable = false, onUpdate, funnel, o
                       value={customerName}
                       onChange={(e) => updateTempField('name', e.target.value)}
                       placeholder="Your name"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent outline-none transition-all"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent outline-none transition-all text-black placeholder-gray-400"
                       style={{
                         '--tw-ring-color': 'var(--pp-cta-bg)',
                         borderColor: customerName ? 'var(--pp-cta-bg)' : undefined
