@@ -1,0 +1,13 @@
+# Audio Asset Placeholder
+This file should be replaced with actual background music.
+For testing, you can use any short MP3 file.
+
+Recommended sources for royalty-free music:
+- Freesound: https://freesound.org/
+- Zapsplat: https://www.zapsplat.com/
+- YouTube Audio Library
+
+Requirements:
+- Format: MP3
+- Duration: 10-30 seconds (will loop)
+- Quality: 128kbps or higher

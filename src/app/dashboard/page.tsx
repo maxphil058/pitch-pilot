@@ -151,7 +151,9 @@ export default function DashboardPage() {
             'pitchpilot/copywriter/done': 'copywriter',
             'pitchpilot/ui/done': 'ui',
             'pitchpilot/analytics/ab-suggestion': 'analytics',
-            'pitchpilot/video/script': 'video'
+            'pitchpilot/video/script': 'video',
+            'pitchpilot/video/progress': 'video',
+            'pitchpilot/video/done': 'video'
           };
           
           const agentType = agentTopics[data.topic as keyof typeof agentTopics];

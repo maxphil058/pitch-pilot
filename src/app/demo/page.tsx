@@ -37,6 +37,9 @@ export default function DemoPage() {
   const [videoExists, setVideoExists] = useState(false);
   const [checkingVideo, setCheckingVideo] = useState(true);
   const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [videoProgress, setVideoProgress] = useState<string>('');
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
 
   const addBlock = (blockType: FunnelBlock['type']) => {
     const newBlock = createNewBlock(blockType);
@@ -360,6 +363,94 @@ export default function DemoPage() {
     }
   };
 
+  // Generate video from script
+  const generateVideo = async () => {
+    if (!agentResult?.script) {
+      setError('Generate a script first');
+      return;
+    }
+
+    setIsGeneratingVideo(true);
+    setVideoProgress('Starting video generation...');
+    setError(null);
+
+    try {
+      const response = await fetch('/api/video/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ script: agentResult.script }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate video');
+      }
+
+      const result = await response.json();
+      setGeneratedVideoUrl(result.url);
+      setVideoProgress('Video generated successfully!');
+      
+      // Switch video source and play
+      if (videoRef) {
+        videoRef.src = result.url;
+        videoRef.load();
+        setTimeout(() => {
+          videoRef?.play().catch(console.error);
+        }, 500);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate video');
+      setVideoProgress('');
+    } finally {
+      setIsGeneratingVideo(false);
+    }
+  };
+
+  // Listen for video progress events via SSE
+  useEffect(() => {
+    if (!isGeneratingVideo) return;
+
+    const eventSource = new EventSource('/api/mesh/stream');
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.topic === 'pitchpilot/video/progress' && data.payload) {
+          const { stage, message } = data.payload;
+          if (stage === 'error') {
+            setError(message);
+            setVideoProgress('');
+            setIsGeneratingVideo(false);
+          } else {
+            setVideoProgress(message || `Stage: ${stage}`);
+          }
+        } else if (data.topic === 'pitchpilot/video/done' && data.payload) {
+          setGeneratedVideoUrl(data.payload.url);
+          setVideoProgress('Video completed!');
+          setIsGeneratingVideo(false);
+          
+          // Switch video source and play
+          if (videoRef) {
+            videoRef.src = data.payload.url;
+            videoRef.load();
+            setTimeout(() => {
+              videoRef?.play().catch(console.error);
+            }, 500);
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing SSE event:', error);
+      }
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [isGeneratingVideo, videoRef]);
+
   // Check video on mount
   useEffect(() => {
     checkVideoExists();
@@ -478,8 +569,29 @@ export default function DemoPage() {
                     </pre>
                   </div>
                   
-                  {/* Play Demo Video Button */}
+                  {/* Video Generation and Playback */}
                   <div className="space-y-2">
+                    {/* Generate Video Button */}
+                    <button
+                      onClick={generateVideo}
+                      disabled={isGeneratingVideo || !agentResult?.script}
+                      className={`w-full px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        !isGeneratingVideo && agentResult?.script
+                          ? 'bg-orange-600 text-white hover:bg-orange-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      {isGeneratingVideo ? 'Generating Video...' : 'Generate Video'}
+                    </button>
+
+                    {/* Progress Indicator */}
+                    {videoProgress && (
+                      <div className="p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-800">
+                        {videoProgress}
+                      </div>
+                    )}
+
+                    {/* Play Demo Video Button (fallback) */}
                     <button
                       onClick={playDemoVideo}
                       disabled={!videoExists || checkingVideo}
@@ -504,9 +616,9 @@ export default function DemoPage() {
                       ref={setVideoRef}
                       className="w-full rounded border"
                       controls
-                      style={{ display: videoExists ? 'block' : 'none' }}
+                      style={{ display: (videoExists || generatedVideoUrl) ? 'block' : 'none' }}
                     >
-                      <source src="/video/demo.mp4" type="video/mp4" />
+                      <source src={generatedVideoUrl || "/video/demo.mp4"} type="video/mp4" />
                       Your browser does not support the video tag.
                     </video>
                   </div>
