@@ -103,6 +103,10 @@ export default function CTA({ data, isEditable = false, onUpdate, themeStyle }: 
             <a
               href={data.buttonLink}
               className={getButtonStyles(data.style)}
+              style={!isEditable ? { 
+                background: 'var(--pp-cta-bg)', 
+                color: 'var(--pp-cta-text)' 
+              } : undefined}
             >
               {data.buttonText}
             </a>

@@ -209,8 +209,13 @@ export default function DemoPage() {
 
   const resetToAITheme = () => {
     setThemeMode('ai');
+    setPrimaryColor('#0EA5E9');
+    setSecondaryColor('#8B5CF6');
+    setGradientAngle(90);
+    setColorError('');
+    
     setFunnel(prev => {
-      const newTheme = { mode: 'ai' as const, colors: [] };
+      const newTheme = { mode: 'ai' as const, colors: [], gradientAngle: 90 };
       return {
         ...prev,
         theme: newTheme,
@@ -287,6 +292,9 @@ export default function DemoPage() {
       .preview-root .pp-cta {
         background: var(--pp-cta-bg) !important;
         color: var(--pp-cta-text) !important;
+      }
+      .pp-star-filled {
+        color: var(--pp-cta-bg) !important;
       }
     </style>
 </head>

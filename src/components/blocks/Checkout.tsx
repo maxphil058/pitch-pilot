@@ -159,7 +159,11 @@ export default function Checkout({ data, isEditable = false, onUpdate, themeStyl
             {!isEditable && (
               <button
                 onClick={handleCheckout}
-                className={`w-full py-4 px-6 rounded-lg font-semibold text-lg transition-opacity hover:opacity-90 shadow-lg ${!isEditable ? 'pp-cta' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                className="w-full py-4 px-6 rounded-lg font-semibold text-lg transition-opacity hover:opacity-90 shadow-lg pp-cta"
+                style={{ 
+                  background: 'var(--pp-cta-bg)', 
+                  color: 'var(--pp-cta-text)' 
+                }}
               >
                 Buy PitchPilot Premium – $1
               </button>

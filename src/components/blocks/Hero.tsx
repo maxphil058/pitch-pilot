@@ -73,6 +73,10 @@ export default function Hero({ data, isEditable = false, onUpdate, themeStyle }:
             <a
               href={data.ctaLink}
               className={`px-8 py-4 rounded-lg font-semibold text-lg transition-opacity hover:opacity-90 inline-block ${!isEditable ? 'pp-cta' : 'bg-white text-blue-600 hover:bg-gray-100'}`}
+              style={!isEditable ? { 
+                background: 'var(--pp-cta-bg)', 
+                color: 'var(--pp-cta-text)' 
+              } : undefined}
             >
               {data.ctaText}
             </a>
