@@ -7,6 +7,12 @@ import CTA from '@/components/blocks/CTA';
 import Testimonials from '@/components/blocks/Testimonials';
 import Checkout from '@/components/blocks/Checkout';
 
+interface AgentResult {
+  copy?: { headline: string; body: string };
+  tweak?: { ctaColor: string; ctaText?: string };
+  script?: string;
+}
+
 export default function DemoPage() {
   const [funnel, setFunnel] = useState<Funnel>({
     id: 'demo-funnel',
@@ -20,6 +26,12 @@ export default function DemoPage() {
 
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const dragCounter = useRef(0);
+
+  // Agent state
+  const [idea, setIdea] = useState('');
+  const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const addBlock = (blockType: FunnelBlock['type']) => {
     const newBlock = createNewBlock(blockType);
@@ -253,6 +265,74 @@ export default function DemoPage() {
     dragCounter.current--;
   };
 
+  // Agent functions
+  const generateFunnel = async () => {
+    if (!idea.trim()) {
+      setError('Please enter a startup idea');
+      return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+    setAgentResult(null);
+
+    try {
+      const response = await fetch('/api/orchestrate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idea: idea.trim() }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate funnel');
+      }
+
+      const result = await response.json();
+      setAgentResult(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const simulateCheckoutSuccess = async () => {
+    if (!agentResult?.copy) {
+      setError('Generate a funnel first');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/agents/analytics/log', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'checkout_success',
+          data: {
+            idea,
+            headline: agentResult.copy.headline,
+            variant: 'A'
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to log analytics event');
+      }
+
+      const result = await response.json();
+      if (result.suggestion) {
+        alert(`A/B Test Suggestion: ${result.suggestion}`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to simulate checkout');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -277,26 +357,126 @@ export default function DemoPage() {
 
       {/* Three-panel layout */}
       <div className="flex h-[calc(100vh-4rem)]">
-        {/* Left Panel - Block Palette */}
+        {/* Left Panel - AI Agent Generator */}
         <div className="w-80 bg-white border-r border-gray-200 p-6 overflow-y-auto">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Block Palette</h2>
-          <p className="text-sm text-gray-600 mb-6">Drag blocks to the canvas to build your funnel</p>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">AI Funnel Generator</h2>
+          <p className="text-sm text-gray-600 mb-6">Generate a complete funnel with AI agents</p>
           
-          <div className="space-y-3">
-            {blockPalette.map((item) => (
-              <div
-                key={item.type}
-                draggable
-                onDragStart={(e) => handleDragStart(e, item.type)}
-                className="p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-grab hover:border-blue-400 hover:bg-blue-50 transition-colors active:cursor-grabbing"
-              >
-                <div className="flex items-center mb-2">
-                  <span className="text-2xl mr-3">{item.icon}</span>
-                  <h3 className="font-medium text-gray-900">{item.name}</h3>
+          {/* Startup Idea Input */}
+          <div className="mb-6">
+            <label htmlFor="idea" className="block text-sm font-medium text-gray-700 mb-2">
+              Startup Idea
+            </label>
+            <textarea
+              id="idea"
+              value={idea}
+              onChange={(e) => setIdea(e.target.value)}
+              placeholder="e.g., AI Coffee Subscription"
+              className="w-full p-3 border border-gray-300 rounded-md text-sm resize-none h-20 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          {/* Generate Button */}
+          <button
+            onClick={generateFunnel}
+            disabled={isGenerating || !idea.trim()}
+            className="w-full bg-blue-600 text-white px-4 py-3 rounded-md text-sm font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors mb-4"
+          >
+            {isGenerating ? 'Generating...' : 'Generate Funnel'}
+          </button>
+
+          {/* Error Display */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
+          {/* Generated Results */}
+          {agentResult && (
+            <div className="space-y-4">
+              {/* Copy Results */}
+              {agentResult.copy && (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-md">
+                  <h3 className="font-medium text-green-900 mb-2">Generated Copy</h3>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-xs text-green-700 font-medium">Headline:</p>
+                      <p className="text-sm text-green-800">{agentResult.copy.headline}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-green-700 font-medium">Body:</p>
+                      <p className="text-sm text-green-800">{agentResult.copy.body}</p>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-600">{item.description}</p>
-              </div>
-            ))}
+              )}
+
+              {/* UI Tweak */}
+              {agentResult.tweak && (
+                <div className="p-4 bg-purple-50 border border-purple-200 rounded-md">
+                  <h3 className="font-medium text-purple-900 mb-2">UI Optimization</h3>
+                  <div className="flex items-center space-x-2">
+                    <div
+                      className="w-6 h-6 rounded border"
+                      style={{ backgroundColor: agentResult.tweak.ctaColor }}
+                    ></div>
+                    <span className="text-sm text-purple-800">
+                      {agentResult.tweak.ctaColor}
+                      {agentResult.tweak.ctaText && ` • "${agentResult.tweak.ctaText}"`}
+                    </span>
+                  </div>
+                  {/* Sample CTA Button */}
+                  <button
+                    className="mt-2 px-4 py-2 rounded-md text-white text-sm font-medium"
+                    style={{ backgroundColor: agentResult.tweak.ctaColor }}
+                  >
+                    {agentResult.tweak.ctaText || 'Get Started'}
+                  </button>
+                </div>
+              )}
+
+              {/* Video Script */}
+              {agentResult.script && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+                  <h3 className="font-medium text-blue-900 mb-2">Video Script</h3>
+                  <pre className="text-xs text-blue-800 whitespace-pre-wrap font-mono">
+                    {agentResult.script}
+                  </pre>
+                </div>
+              )}
+
+              {/* Simulate Checkout Button */}
+              <button
+                onClick={simulateCheckoutSuccess}
+                className="w-full bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 transition-colors"
+              >
+                Simulate Checkout Success
+              </button>
+            </div>
+          )}
+
+          {/* Block Palette Section */}
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <h3 className="text-md font-semibold text-gray-900 mb-4">Block Palette</h3>
+            <p className="text-sm text-gray-600 mb-4">Drag blocks to the canvas</p>
+            
+            <div className="space-y-3">
+              {blockPalette.map((item) => (
+                <div
+                  key={item.type}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, item.type)}
+                  className="p-3 border-2 border-dashed border-gray-300 rounded-lg cursor-grab hover:border-blue-400 hover:bg-blue-50 transition-colors active:cursor-grabbing"
+                >
+                  <div className="flex items-center mb-1">
+                    <span className="text-lg mr-2">{item.icon}</span>
+                    <h4 className="font-medium text-gray-900 text-sm">{item.name}</h4>
+                  </div>
+                  <p className="text-xs text-gray-600">{item.description}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
