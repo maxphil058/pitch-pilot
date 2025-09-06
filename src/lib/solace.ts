@@ -15,6 +15,11 @@ export async function publishEvent({ topic, payload }: PublishEventParams) {
     time: timestamp
   });
 
+  // If DEMO_MODE is enabled, skip Solace and only use in-memory bus
+  if (process.env.DEMO_MODE === 'true') {
+    return { ok: true };
+  }
+
   // Attempt to publish to Solace REST API
   try {
     const solaceHost = process.env.SOLACE_HOST;
@@ -25,7 +30,7 @@ export async function publishEvent({ topic, payload }: PublishEventParams) {
 
     if (!solaceHost || !solacePort || !solaceUsername || !solacePassword || !solaceMsgVpn) {
       console.warn('Solace configuration incomplete, using in-memory bus only');
-      return;
+      return { ok: true };
     }
 
     const url = `https://${solaceHost}:${solacePort}/TOPIC/${topic}`;
@@ -44,7 +49,10 @@ export async function publishEvent({ topic, payload }: PublishEventParams) {
     if (!response.ok) {
       console.warn(`Solace publish failed: ${response.status} ${response.statusText}`);
     }
+    
+    return { ok: response.ok };
   } catch (error) {
     console.warn('Solace publish error:', error);
+    return { ok: false };
   }
 }

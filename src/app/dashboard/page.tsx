@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import DashboardAccess from './access';
 
 interface Transaction {
   id: string;
@@ -29,6 +30,8 @@ export default function DashboardPage() {
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [loading, setLoading] = useState(true);
   const [checkoutToast, setCheckoutToast] = useState<{ amount: number; currency: string } | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [agentPulses, setAgentPulses] = useState<Record<string, boolean>>({});
 
   const [agentActivities, setAgentActivities] = useState<AgentActivity[]>([
     {
@@ -86,8 +89,23 @@ export default function DashboardPage() {
     }
   };
 
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/dashboard/auth');
+        const data = await response.json();
+        setIsAuthenticated(data.authenticated);
+      } catch (error) {
+        setIsAuthenticated(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
   // Connect to mesh event stream
   useEffect(() => {
+    if (!isAuthenticated) return;
     const eventSource = new EventSource('/api/mesh/stream');
     
     eventSource.onopen = () => {
@@ -106,6 +124,14 @@ export default function DashboardPage() {
           // Regular mesh event
           setMeshEvents(prev => [data, ...prev.slice(0, 199)]); // Cap at 200 events
           
+          // Auto-scroll to latest event
+          setTimeout(() => {
+            const logElement = document.getElementById('agent-log');
+            if (logElement) {
+              logElement.scrollTop = 0;
+            }
+          }, 100);
+          
           // Handle checkout success events
           if (data.topic === 'pitchpilot/checkout/success' && data.payload) {
             const { amount, currency } = data.payload;
@@ -118,6 +144,22 @@ export default function DashboardPage() {
             
             // Refresh transactions to update revenue
             fetchTransactions();
+          }
+          
+          // Handle agent events for pulse animations
+          const agentTopics = {
+            'pitchpilot/copywriter/done': 'copywriter',
+            'pitchpilot/ui/done': 'ui',
+            'pitchpilot/analytics/ab-suggestion': 'analytics',
+            'pitchpilot/video/script': 'video'
+          };
+          
+          const agentType = agentTopics[data.topic as keyof typeof agentTopics];
+          if (agentType) {
+            setAgentPulses(prev => ({ ...prev, [agentType]: true }));
+            setTimeout(() => {
+              setAgentPulses(prev => ({ ...prev, [agentType]: false }));
+            }, 2000);
           }
         }
       } catch (error) {
@@ -132,9 +174,10 @@ export default function DashboardPage() {
     return () => {
       eventSource.close();
     };
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     fetchTransactions();
 
     // Simulate real-time updates
@@ -163,7 +206,7 @@ export default function DashboardPage() {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isAuthenticated]);
 
   const sendTestEvent = async () => {
     try {
@@ -183,6 +226,24 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Error sending test event:', error);
+    }
+  };
+
+  const runDemoScript = async () => {
+    try {
+      const response = await fetch('/api/orchestrate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idea: 'AI Coffee Subscription' }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to run demo script');
+      }
+    } catch (error) {
+      console.error('Error running demo script:', error);
     }
   };
 
@@ -217,6 +278,20 @@ export default function DashboardPage() {
     }
   };
 
+  // Show access form if not authenticated
+  if (isAuthenticated === false) {
+    return <DashboardAccess onAccessGranted={() => setIsAuthenticated(true)} />;
+  }
+
+  // Show loading while checking authentication
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Checkout Success Toast */}
@@ -236,9 +311,17 @@ export default function DashboardPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Judge Dashboard</h1>
-          <p className="text-gray-600 mt-2">Real-time view of PitchPilot&apos;s AI agents and revenue generation</p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Judge Dashboard</h1>
+            <p className="text-gray-600 mt-2">Real-time view of PitchPilot&apos;s AI agents and revenue generation</p>
+          </div>
+          <button
+            onClick={runDemoScript}
+            className="bg-purple-600 text-white px-6 py-3 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors"
+          >
+            Run Demo Script
+          </button>
         </div>
 
         {/* Stats Cards */}
@@ -286,65 +369,21 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Real-time Transactions */}
-          <div className="bg-white rounded-lg shadow">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Recent Transactions</h2>
-              <p className="text-sm text-gray-600">Last 5 payments received</p>
-            </div>
-            <div className="p-6">
-              {loading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="text-gray-500 mt-2">Loading transactions...</p>
-                </div>
-              ) : transactions.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No transactions yet</p>
-                  <p className="text-sm text-gray-400 mt-1">Complete a purchase to see transactions here</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {transactions.map((transaction) => (
-                    <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900">PitchPilot Premium</p>
-                        <p className="text-sm text-gray-600">{formatTime(transaction.createdAt)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-green-600">
-                          {formatCurrency(transaction.amount / 100, transaction.currency)}
-                        </p>
-                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full text-green-600 bg-green-100">
-                          completed
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Agent Log Panel */}
-          <div className="bg-white rounded-lg shadow">
+        {/* Two-column layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column - Agent Log Panel */}
+          <div className="lg:col-span-2 bg-white rounded-lg shadow">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Agent Mesh Log</h2>
-                  <p className="text-sm text-gray-600">Real-time event stream</p>
+                  <h2 className="text-lg font-semibold text-gray-900">Real-time Agent Log</h2>
+                  <p className="text-sm text-gray-600">
+                    Live mesh events {meshConnected ? 
+                      <span className="text-green-600">● Connected</span> : 
+                      <span className="text-red-600">● Disconnected</span>
+                    }
+                  </p>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className={`w-3 h-3 rounded-full ${meshConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span className="text-sm text-gray-600">
-                    {meshConnected ? 'Connected' : 'Disconnected'}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="mb-4">
                 <button
                   onClick={sendTestEvent}
                   className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm"
@@ -352,25 +391,100 @@ export default function DashboardPage() {
                   Send Test Event
                 </button>
               </div>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
+            </div>
+            <div className="p-6">
+              <div className="space-y-3 max-h-96 overflow-y-auto" id="agent-log">
                 {meshEvents.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-500">No events yet</p>
-                    <p className="text-sm text-gray-400 mt-1">Click &quot;Send Test Event&quot; to see events here</p>
+                    <p className="text-sm text-gray-400 mt-1">Click &quot;Run Demo Script&quot; to see agent activity</p>
                   </div>
                 ) : (
                   meshEvents.map((event, index) => (
-                    <div key={index} className="bg-gray-50 p-3 rounded-lg text-sm">
+                    <div key={index} className="bg-gray-50 p-4 rounded-lg border-l-4 border-blue-500">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-medium text-blue-600">{event.topic}</span>
                         <span className="text-xs text-gray-500">{new Date(event.time).toLocaleTimeString()}</span>
                       </div>
-                      <pre className="text-xs text-gray-700 whitespace-pre-wrap overflow-x-auto">
+                      <pre className="text-xs text-gray-700 whitespace-pre-wrap overflow-x-auto bg-white p-2 rounded border">
                         {JSON.stringify(event.payload, null, 2)}
                       </pre>
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column */}
+          <div className="space-y-8">
+            {/* Revenue Counter & Transactions */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">Revenue & Transactions</h2>
+                <p className="text-2xl font-bold text-green-600 mt-2">{formatCurrency(totalRevenue, 'USD')}</p>
+              </div>
+              <div className="p-6">
+                {loading ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                  </div>
+                ) : transactions.length === 0 ? (
+                  <div className="text-center py-4">
+                    <p className="text-gray-500 text-sm">No transactions yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {transactions.slice(0, 5).map((transaction) => (
+                      <div key={transaction.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">Premium</p>
+                          <p className="text-xs text-gray-600">{formatTime(transaction.createdAt)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-green-600 text-sm">
+                            {formatCurrency(transaction.amount / 100, transaction.currency)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Agent Cards */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">AI Agents</h2>
+                <p className="text-sm text-gray-600">Live activity status</p>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { key: 'copywriter', name: 'Copywriter', icon: '✍️', color: 'blue' },
+                    { key: 'ui', name: 'UI Optimizer', icon: '🎨', color: 'purple' },
+                    { key: 'analytics', name: 'Analytics', icon: '📊', color: 'green' },
+                    { key: 'video', name: 'Video Script', icon: '🎬', color: 'orange' }
+                  ].map((agent) => (
+                    <div
+                      key={agent.key}
+                      className={`p-4 rounded-lg border-2 transition-all duration-500 ${
+                        agentPulses[agent.key]
+                          ? `border-${agent.color}-500 bg-${agent.color}-50 animate-pulse`
+                          : 'border-gray-200 bg-gray-50'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-2xl mb-2">{agent.icon}</div>
+                        <p className="font-medium text-gray-900 text-sm">{agent.name}</p>
+                        <div className={`w-2 h-2 rounded-full mx-auto mt-2 ${
+                          agentPulses[agent.key] ? `bg-${agent.color}-500` : 'bg-gray-300'
+                        }`}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
