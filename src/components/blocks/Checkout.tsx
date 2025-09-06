@@ -1,11 +1,12 @@
 'use client';
 
-import { CheckoutData } from '@/lib/funnelSchema';
+import { CheckoutData, Funnel } from '@/lib/funnelSchema';
 
 interface CheckoutProps {
   data: CheckoutData;
   isEditable?: boolean;
   onUpdate?: (data: CheckoutData) => void;
+  funnel?: Funnel;
   themeStyle?: {
     background?: string;
     ctaBackground?: string;
@@ -13,7 +14,19 @@ interface CheckoutProps {
   };
 }
 
-export default function Checkout({ data, isEditable = false, onUpdate, themeStyle }: CheckoutProps) {
+export default function Checkout({ data, isEditable = false, onUpdate, funnel, themeStyle }: CheckoutProps) {
+  // Use funnel.checkout as single source of truth for price/currency/interval
+  const displayPrice = funnel?.checkout?.price ?? data.price;
+  const displayCurrency = funnel?.checkout?.currency ?? data.currency;
+  const displayInterval = funnel?.checkout?.interval ?? data.interval;
+  
+  // Format price with Intl.NumberFormat
+  const formatPrice = (price: number, currency: string) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency
+    }).format(price);
+  };
   const handleUpdate = (field: keyof CheckoutData, value: string | number | string[]) => {
     if (onUpdate) {
       onUpdate({ ...data, [field]: value });
@@ -86,21 +99,9 @@ export default function Checkout({ data, isEditable = false, onUpdate, themeStyl
             
             <div className="flex items-center justify-center mb-4">
               <span className="text-4xl font-bold" style={{ color: isEditable ? '#2563eb' : 'var(--pp-cta-bg)' }}>
-                {data.currency === 'USD' ? '$' : data.currency}
-                {isEditable ? (
-                  <input
-                    type="number"
-                    value={data.price}
-                    onChange={(e) => handleUpdate('price', parseFloat(e.target.value) || 0)}
-                    className="bg-transparent border-b focus:border-blue-500 outline-none w-20 text-center"
-                    style={{ borderColor: isEditable ? '#93c5fd' : 'var(--pp-cta-bg)' }}
-                    step="0.01"
-                  />
-                ) : (
-                  data.price
-                )}
+                {formatPrice(displayPrice, displayCurrency)}
               </span>
-              <span className="text-gray-600 ml-2">/ {data.interval}</span>
+              <span className="text-gray-600 ml-2">/ {displayInterval}</span>
             </div>
             
             {isEditable ? (
@@ -170,7 +171,7 @@ export default function Checkout({ data, isEditable = false, onUpdate, themeStyl
                   color: 'var(--pp-cta-text)' 
                 }}
               >
-                Get {data.productName} – ${data.price}
+                Get {data.productName} – {formatPrice(displayPrice, displayCurrency)}
               </button>
             )}
             

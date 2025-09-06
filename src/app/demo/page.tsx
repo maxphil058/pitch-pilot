@@ -21,7 +21,12 @@ export default function DemoPage() {
     blocks: [],
     createdAt: new Date(),
     updatedAt: new Date(),
-    isPublished: false
+    isPublished: false,
+    checkout: {
+      price: 1,
+      currency: 'USD',
+      interval: 'month'
+    }
   });
 
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
@@ -41,9 +46,8 @@ export default function DemoPage() {
   const [gradientAngle, setGradientAngle] = useState(90);
   const [colorError, setColorError] = useState<string | null>(null);
 
-  // Checkout pricing state
-  const [checkoutPrice, setCheckoutPrice] = useState(1);
-  const [checkoutInterval, setCheckoutInterval] = useState<'month' | 'year'>('month');
+  // Price input validation state
+  const [priceError, setPriceError] = useState<string | null>(null);
 
   // Video state
   const [videoExists, setVideoExists] = useState(false);
@@ -163,30 +167,8 @@ export default function DemoPage() {
     }));
   }, [primaryColor, secondaryColor, themeMode, gradientAngle]);
 
-  // Auto-apply checkout pricing changes
-  useEffect(() => {
-    setFunnel(prev => {
-      const checkoutIndex = prev.blocks.findIndex(block => block.type === 'checkout');
-      if (checkoutIndex >= 0) {
-        const updatedBlocks = [...prev.blocks];
-        updatedBlocks[checkoutIndex] = {
-          ...updatedBlocks[checkoutIndex],
-          data: {
-            ...updatedBlocks[checkoutIndex].data,
-            price: checkoutPrice,
-            interval: checkoutInterval
-          } as CheckoutData
-        };
-        
-        return {
-          ...prev,
-          blocks: updatedBlocks,
-          updatedAt: new Date()
-        };
-      }
-      return prev;
-    });
-  }, [checkoutPrice, checkoutInterval]);
+  // This useEffect is no longer needed since pricing is handled by funnel.checkout
+  // Removed to fix undefined variable errors
 
   const validateAndApplyTheme = () => {
     // This function is now optional since auto-apply handles most cases
@@ -275,7 +257,7 @@ export default function DemoPage() {
       case 'testimonials':
         return <Testimonials key={`${block.id}-${funnel.updatedAt?.getTime()}`} data={block.data as TestimonialsData} {...commonProps} {...themeProps} />;
       case 'checkout':
-        return <Checkout key={`${block.id}-${funnel.updatedAt?.getTime()}`} data={block.data as CheckoutData} {...commonProps} {...themeProps} />;
+        return <Checkout key={`${block.id}-${funnel.updatedAt?.getTime()}`} data={block.data as CheckoutData} funnel={funnel} {...commonProps} {...themeProps} />;
       default:
         return null;
     }
@@ -383,11 +365,24 @@ export default function DemoPage() {
           
         case 'checkout':
           const checkoutData = block.data as CheckoutData;
+          // Use funnel.checkout as single source of truth for export
+          const exportPrice = funnel.checkout?.price ?? checkoutData.price;
+          const exportCurrency = funnel.checkout?.currency ?? checkoutData.currency;
+          const exportInterval = funnel.checkout?.interval ?? checkoutData.interval;
+          
+          // Format price with Intl.NumberFormat for export
+          const formatExportPrice = (price: number, currency: string) => {
+            return new Intl.NumberFormat('en-US', {
+              style: 'currency',
+              currency: currency
+            }).format(price);
+          };
+          
           const hasPaymentLink = checkoutData.paymentLink && checkoutData.paymentLink.trim() !== '';
           const buttonClass = hasPaymentLink 
             ? 'pp-cta py-4 px-6 rounded-lg font-semibold text-lg transition-colors shadow-lg'
             : 'bg-gray-400 text-gray-600 py-4 px-6 rounded-lg font-semibold text-lg cursor-not-allowed shadow-lg';
-          const buttonText = hasPaymentLink ? `Get ${checkoutData.productName} – $${checkoutData.price}` : 'Payment Not Available';
+          const buttonText = hasPaymentLink ? `Get ${checkoutData.productName} – ${formatExportPrice(exportPrice, exportCurrency)}` : 'Payment Not Available';
           
           return `<section id="checkout" class="py-16 px-4 bg-gradient-to-br from-gray-50 to-white">
             <div class="max-w-2xl mx-auto">
@@ -396,9 +391,9 @@ export default function DemoPage() {
                   <h3 class="text-2xl md:text-3xl font-bold text-gray-900 mb-4">${escapeHtml(checkoutData.productName)}</h3>
                   <div class="flex items-center justify-center mb-4">
                     <span class="text-4xl font-bold" style="color: var(--pp-cta-bg)">
-                      ${checkoutData.currency === 'USD' ? '$' : escapeHtml(checkoutData.currency)}${checkoutData.price}
+                      ${formatExportPrice(exportPrice, exportCurrency)}
                     </span>
-                    <span class="text-gray-600 ml-2">/ ${checkoutData.interval}</span>
+                    <span class="text-gray-600 ml-2">/ ${exportInterval}</span>
                   </div>
                   <p class="text-gray-600">${escapeHtml(checkoutData.description)}</p>
                 </div>
@@ -474,6 +469,36 @@ export default function DemoPage() {
   const handleDragLeave = (e: React.DragEvent) => {
     dragCounter.current--;
   };
+
+  // Export funnel to Prisma
+  useEffect(() => {
+    if (funnel.blocks.length === 0) return;
+    
+    const saveFunnel = async () => {
+      try {
+        const response = await fetch('/api/funnels', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...funnel,
+            price: funnel.checkout?.price || 1,
+            interval: funnel.checkout?.interval || 'month'
+          }),
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to save funnel');
+        }
+      } catch (error) {
+        console.error('Error saving funnel:', error);
+      }
+    };
+    
+    const timeoutId = setTimeout(saveFunnel, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [funnel.checkout?.price, funnel.checkout?.interval]);
 
   // Agent functions
   const generateFunnel = async () => {
@@ -634,15 +659,16 @@ export default function DemoPage() {
             blocks.push(newTestimonials);
           }
 
-          // Update or create Checkout block
+          // Update or create Checkout block (preserve user-edited prices)
           if (checkoutIndex >= 0) {
             blocks[checkoutIndex] = {
               ...blocks[checkoutIndex],
               data: {
                 productName: idea,
-                price: 1,
-                currency: 'USD',
-                interval: 'month',
+                // Only update price/currency/interval if they haven't been set by user
+                price: prev.checkout?.price !== undefined ? (blocks[checkoutIndex].data as CheckoutData).price : 1,
+                currency: prev.checkout?.currency !== undefined ? (blocks[checkoutIndex].data as CheckoutData).currency : 'USD',
+                interval: prev.checkout?.interval !== undefined ? (blocks[checkoutIndex].data as CheckoutData).interval : 'month',
                 description: result.copy.body || 'Instant access.',
                 features: result.copy?.features ?? getPersonaFeatures(persona, idea)
               }
@@ -651,9 +677,10 @@ export default function DemoPage() {
             const newCheckout = createNewBlock('checkout');
             newCheckout.data = {
               productName: idea,
-              price: 1,
-              currency: 'USD',
-              interval: 'month',
+              // Use funnel.checkout values if they exist, otherwise defaults
+              price: prev.checkout?.price ?? 1,
+              currency: prev.checkout?.currency ?? 'USD',
+              interval: prev.checkout?.interval ?? 'month',
               description: result.copy.body || 'Instant access.',
               features: result.copy?.features ?? getPersonaFeatures(persona, idea),
               paymentLink: '/api/checkout'
@@ -671,6 +698,8 @@ export default function DemoPage() {
             blocks,
             // Preserve existing theme unless mode is 'ai'
             theme: prev.theme?.mode !== 'ai' ? prev.theme : { mode: 'ai', colors: [] },
+            // Preserve user-edited checkout pricing
+            checkout: prev.checkout,
             updatedAt: new Date()
           };
         });
@@ -1125,12 +1154,34 @@ export default function DemoPage() {
                 </label>
                 <input
                   type="number"
-                  value={checkoutPrice}
-                  onChange={(e) => setCheckoutPrice(Number(e.target.value) || 1)}
-                  min="1"
-                  step="1"
-                  className="w-full p-2 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  value={funnel.checkout?.price || 1}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value);
+                    if (isNaN(value) || value < 0) {
+                      setPriceError('Price must be a valid number greater than or equal to 0');
+                      return;
+                    }
+                    setPriceError(null);
+                    setFunnel(prev => ({
+                      ...prev,
+                      checkout: {
+                        ...prev.checkout,
+                        price: value,
+                        currency: prev.checkout?.currency || 'USD',
+                        interval: prev.checkout?.interval || 'month'
+                      },
+                      updatedAt: new Date()
+                    }));
+                  }}
+                  min="0"
+                  step="0.01"
+                  className={`w-full p-2 text-xs border rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${
+                    priceError ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
                 />
+                {priceError && (
+                  <p className="text-xs text-red-600 mt-1">{priceError}</p>
+                )}
               </div>
 
               <div>
@@ -1138,8 +1189,19 @@ export default function DemoPage() {
                   Billing Interval
                 </label>
                 <select
-                  value={checkoutInterval}
-                  onChange={(e) => setCheckoutInterval(e.target.value as 'month' | 'year')}
+                  value={funnel.checkout?.interval || 'month'}
+                  onChange={(e) => {
+                    setFunnel(prev => ({
+                      ...prev,
+                      checkout: {
+                        ...prev.checkout,
+                        price: prev.checkout?.price || 1,
+                        currency: prev.checkout?.currency || 'USD',
+                        interval: e.target.value as 'month' | 'year'
+                      },
+                      updatedAt: new Date()
+                    }));
+                  }}
                   className="w-full p-2 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="month">Monthly</option>

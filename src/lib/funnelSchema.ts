@@ -63,6 +63,11 @@ export interface Funnel {
   updatedAt: Date;
   isPublished: boolean;
   theme?: Theme;
+  checkout?: {
+    price: number;
+    currency: string;
+    interval: 'month' | 'year';
+  };
 }
 
 // Sample funnel data for demo
