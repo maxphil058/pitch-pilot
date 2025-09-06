@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Funnel, FunnelBlock, HeroData, CTAData, TestimonialsData, CheckoutData, blockPalette, createNewBlock } from '@/lib/funnelSchema';
 import Hero from '@/components/blocks/Hero';
 import CTA from '@/components/blocks/CTA';
@@ -32,6 +32,11 @@ export default function DemoPage() {
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Video state
+  const [videoExists, setVideoExists] = useState(false);
+  const [checkingVideo, setCheckingVideo] = useState(true);
+  const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
 
   const addBlock = (blockType: FunnelBlock['type']) => {
     const newBlock = createNewBlock(blockType);
@@ -333,6 +338,33 @@ export default function DemoPage() {
     }
   };
 
+  // Check if demo video exists
+  const checkVideoExists = async () => {
+    try {
+      const response = await fetch('/video/demo.mp4', { method: 'HEAD' });
+      setVideoExists(response.ok);
+    } catch (error) {
+      setVideoExists(false);
+    } finally {
+      setCheckingVideo(false);
+    }
+  };
+
+  // Play demo video
+  const playDemoVideo = () => {
+    if (videoRef && videoExists) {
+      videoRef.load(); // Reload the video source
+      videoRef.play().catch(error => {
+        console.error('Error playing video:', error);
+      });
+    }
+  };
+
+  // Check video on mount
+  useEffect(() => {
+    checkVideoExists();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -440,9 +472,44 @@ export default function DemoPage() {
               {agentResult.script && (
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
                   <h3 className="font-medium text-blue-900 mb-2">Video Script</h3>
-                  <pre className="text-xs text-blue-800 whitespace-pre-wrap font-mono">
-                    {agentResult.script}
-                  </pre>
+                  <div className="h-64 overflow-y-auto bg-white border border-blue-200 rounded p-3 mb-3">
+                    <pre className="text-xs text-blue-800 whitespace-pre-wrap font-mono leading-relaxed">
+                      {agentResult.script}
+                    </pre>
+                  </div>
+                  
+                  {/* Play Demo Video Button */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={playDemoVideo}
+                      disabled={!videoExists || checkingVideo}
+                      className={`w-full px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        videoExists && !checkingVideo
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                      title={!videoExists && !checkingVideo ? 'Drop a 30-45s MP4 in /public/video/demo.mp4' : ''}
+                    >
+                      {checkingVideo ? 'Checking Video...' : videoExists ? 'Play Demo Video' : 'Demo Video Missing'}
+                    </button>
+                    
+                    {!videoExists && !checkingVideo && (
+                      <p className="text-xs text-gray-600 text-center">
+                        Drop a 30–45s MP4 in <code className="bg-gray-200 px-1 rounded">/public/video/demo.mp4</code>
+                      </p>
+                    )}
+                    
+                    {/* Video Element */}
+                    <video
+                      ref={setVideoRef}
+                      className="w-full rounded border"
+                      controls
+                      style={{ display: videoExists ? 'block' : 'none' }}
+                    >
+                      <source src="/video/demo.mp4" type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
+                  </div>
                 </div>
               )}
 
