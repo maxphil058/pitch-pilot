@@ -41,6 +41,10 @@ export default function DemoPage() {
   const [gradientAngle, setGradientAngle] = useState(90);
   const [colorError, setColorError] = useState<string | null>(null);
 
+  // Checkout pricing state
+  const [checkoutPrice, setCheckoutPrice] = useState(1);
+  const [checkoutInterval, setCheckoutInterval] = useState<'month' | 'year'>('month');
+
   // Video state
   const [videoExists, setVideoExists] = useState(false);
   const [checkingVideo, setCheckingVideo] = useState(true);
@@ -118,32 +122,25 @@ export default function DemoPage() {
     
     // Validate primary color
     const normalizedPrimary = normalizeColor(primaryColor);
+    const normalizedSecondary = normalizeColor(secondaryColor) || undefined;
+    
     if (!normalizedPrimary) {
-      errors.push('Invalid primary color');
+      setColorError('Invalid primary color');
+      return;
     }
     
-    // Validate secondary color for gradients
-    let normalizedSecondary: string | null = null;
-    if (themeMode === 'gradient') {
-      normalizedSecondary = normalizeColor(secondaryColor);
-      if (!normalizedSecondary) {
-        errors.push('Invalid secondary color');
-      }
-    }
-    
-    if (errors.length > 0) {
-      setColorError(errors.join(', '));
+    if (themeMode === 'gradient' && !normalizedSecondary) {
+      setColorError('Invalid secondary color for gradient');
       return;
     }
     
     setColorError('');
     
-    // Auto-apply valid theme immediately with immutable update
     setFunnel(prev => {
-      const newTheme = {
+      const newTheme: Theme = {
         mode: themeMode,
-        colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary || '#8B5CF6'] : [normalizedPrimary!],
-        gradientAngle: themeMode === 'gradient' ? gradientAngle : undefined
+        colors: themeMode === 'gradient' ? [normalizedPrimary, normalizedSecondary || '#8B5CF6'] : [normalizedPrimary],
+        angle: themeMode === 'gradient' ? gradientAngle : undefined
       };
       
       return {
@@ -154,14 +151,39 @@ export default function DemoPage() {
     });
     
     // Emit theme change event
-    window.dispatchEvent(new CustomEvent('pitchpilot/ui/done', {
+    window.dispatchEvent(new CustomEvent('pitchpilot/ui/done', { 
       detail: { 
         mode: themeMode, 
         colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary || '#8B5CF6'] : [normalizedPrimary!],
-        gradientAngle: themeMode === 'gradient' ? gradientAngle : undefined
+        angle: themeMode === 'gradient' ? gradientAngle : undefined
       }
     }));
   }, [primaryColor, secondaryColor, themeMode, gradientAngle]);
+
+  // Auto-apply checkout pricing changes
+  useEffect(() => {
+    setFunnel(prev => {
+      const checkoutIndex = prev.blocks.findIndex(block => block.type === 'checkout');
+      if (checkoutIndex >= 0) {
+        const updatedBlocks = [...prev.blocks];
+        updatedBlocks[checkoutIndex] = {
+          ...updatedBlocks[checkoutIndex],
+          data: {
+            ...updatedBlocks[checkoutIndex].data,
+            price: checkoutPrice,
+            interval: checkoutInterval
+          } as CheckoutData
+        };
+        
+        return {
+          ...prev,
+          blocks: updatedBlocks,
+          updatedAt: new Date()
+        };
+      }
+      return prev;
+    });
+  }, [checkoutPrice, checkoutInterval]);
 
   const validateAndApplyTheme = () => {
     // This function is now optional since auto-apply handles most cases
@@ -175,7 +197,7 @@ export default function DemoPage() {
     
     let normalizedSecondary: string | undefined;
     if (themeMode === 'gradient') {
-      normalizedSecondary = normalizeColor(secondaryColor);
+      normalizedSecondary = normalizeColor(secondaryColor) || undefined;
       if (!normalizedSecondary) {
         errors.push('Invalid secondary color format');
       }
@@ -193,7 +215,7 @@ export default function DemoPage() {
       theme: {
         mode: themeMode,
         colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary || '#8B5CF6'] : [normalizedPrimary!],
-        gradientAngle: themeMode === 'gradient' ? gradientAngle : undefined
+        angle: themeMode === 'gradient' ? gradientAngle : undefined
       },
       updatedAt: new Date()
     }));
@@ -202,7 +224,7 @@ export default function DemoPage() {
       detail: { 
         mode: themeMode, 
         colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary || '#8B5CF6'] : [normalizedPrimary!],
-        gradientAngle: themeMode === 'gradient' ? gradientAngle : undefined
+        angle: themeMode === 'gradient' ? gradientAngle : undefined
       }
     }));
   };
@@ -215,7 +237,7 @@ export default function DemoPage() {
     setColorError('');
     
     setFunnel(prev => {
-      const newTheme = { mode: 'ai' as const, colors: [], gradientAngle: 90 };
+      const newTheme = { mode: 'ai' as const, colors: [], angle: 90 };
       return {
         ...prev,
         theme: newTheme,
@@ -360,9 +382,9 @@ export default function DemoPage() {
           const checkoutData = block.data as CheckoutData;
           const hasPaymentLink = checkoutData.paymentLink && checkoutData.paymentLink.trim() !== '';
           const buttonClass = hasPaymentLink 
-            ? 'bg-blue-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors shadow-lg'
+            ? 'pp-cta py-4 px-6 rounded-lg font-semibold text-lg transition-colors shadow-lg'
             : 'bg-gray-400 text-gray-600 py-4 px-6 rounded-lg font-semibold text-lg cursor-not-allowed shadow-lg';
-          const buttonText = hasPaymentLink ? 'Get Started Now' : 'Payment Not Available';
+          const buttonText = hasPaymentLink ? `Get ${checkoutData.productName} – $${checkoutData.price}` : 'Payment Not Available';
           
           return `<section id="checkout" class="py-16 px-4 bg-gradient-to-br from-gray-50 to-white">
             <div class="max-w-2xl mx-auto">
@@ -370,10 +392,10 @@ export default function DemoPage() {
                 <div class="text-center mb-8">
                   <h3 class="text-2xl md:text-3xl font-bold text-gray-900 mb-4">${escapeHtml(checkoutData.productName)}</h3>
                   <div class="flex items-center justify-center mb-4">
-                    <span class="text-4xl font-bold text-blue-600">
+                    <span class="text-4xl font-bold" style="color: var(--pp-cta-bg)">
                       ${checkoutData.currency === 'USD' ? '$' : escapeHtml(checkoutData.currency)}${checkoutData.price}
                     </span>
-                    <span class="text-gray-600 ml-2">/month</span>
+                    <span class="text-gray-600 ml-2">/ ${checkoutData.interval}</span>
                   </div>
                   <p class="text-gray-600">${escapeHtml(checkoutData.description)}</p>
                 </div>
@@ -614,10 +636,10 @@ export default function DemoPage() {
             blocks[checkoutIndex] = {
               ...blocks[checkoutIndex],
               data: {
-                ...blocks[checkoutIndex].data,
                 productName: idea,
                 price: 1,
                 currency: 'USD',
+                interval: 'month',
                 description: result.copy.body || 'Instant access.',
                 features: result.copy?.features ?? getPersonaFeatures(persona, idea)
               }
@@ -628,6 +650,7 @@ export default function DemoPage() {
               productName: idea,
               price: 1,
               currency: 'USD',
+              interval: 'month',
               description: result.copy.body || 'Instant access.',
               features: result.copy?.features ?? getPersonaFeatures(persona, idea),
               paymentLink: '/api/checkout'
@@ -716,8 +739,8 @@ export default function DemoPage() {
   // Play demo video
   const playDemoVideo = () => {
     if (videoRef && videoExists) {
-      videoRef.load(); // Reload the video source
-      videoRef.play().catch(error => {
+      videoRef.current?.load(); // Reload the video source
+      videoRef.current?.play().catch((error: any) => {
         console.error('Error playing video:', error);
       });
     }
@@ -1076,25 +1099,47 @@ export default function DemoPage() {
                 <button
                   onClick={validateAndApplyTheme}
                   disabled={!!colorError}
-                  className="w-full bg-gray-500 text-white px-3 py-2 rounded text-xs font-medium hover:bg-gray-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded text-sm font-medium hover:bg-blue-700 transition-colors"
                 >
                   Apply Now (Optional)
                 </button>
               </div>
             )}
 
-            {/* Reset to AI Button */}
-            {themeMode !== 'ai' && (
-              <button
-                onClick={resetToAITheme}
-                className="w-full mt-2 bg-gray-500 text-white px-3 py-2 rounded text-xs font-medium hover:bg-gray-600 transition-colors"
-              >
-                Reset to AI Colors
-              </button>
-            )}
+            {/* Checkout Pricing Controls */}
+            <div className="space-y-3 pt-4 border-t border-gray-200">
+              <h4 className="text-sm font-medium text-gray-900">Checkout Pricing</h4>
+              
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Price ($)
+                </label>
+                <input
+                  type="number"
+                  value={checkoutPrice}
+                  onChange={(e) => setCheckoutPrice(Number(e.target.value) || 1)}
+                  min="1"
+                  step="1"
+                  className="w-full p-2 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Billing Interval
+                </label>
+                <select
+                  value={checkoutInterval}
+                  onChange={(e) => setCheckoutInterval(e.target.value as 'month' | 'year')}
+                  className="w-full p-2 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="month">Monthly</option>
+                  <option value="year">Yearly</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          {/* Generate Button */}
           <button
             onClick={generateFunnel}
             disabled={isGenerating || !idea.trim()}
@@ -1230,7 +1275,6 @@ export default function DemoPage() {
                           poster={posterUrl || undefined}
                           controls
                           muted
-                          // @ts-expect-error: playsInline is valid
                           playsInline
                           preload="auto"
                           className="w-full aspect-video rounded-xl shadow"

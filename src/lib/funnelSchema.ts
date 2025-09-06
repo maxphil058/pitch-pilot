@@ -39,6 +39,7 @@ export interface CheckoutData {
   productName: string;
   price: number;
   currency: string;
+  interval: 'month' | 'year';
   description: string;
   features: string[];
   stripePriceId?: string;
@@ -135,6 +136,7 @@ export const sampleFunnel: Funnel = {
         productName: 'AI Coffee Subscription - Monthly',
         price: 29.99,
         currency: 'USD',
+        interval: 'month',
         description: 'Monthly delivery of personalized coffee blends',
         features: [
           'AI-powered taste profiling',
@@ -178,12 +180,13 @@ export const blockTemplates = {
   } as TestimonialsData,
   
   checkout: {
-    productName: 'Premium Plan',
-    price: 99,
+    productName: 'Your Product Name',
+    price: 1,
     currency: 'USD',
-    description: 'Everything you need to succeed',
+    interval: 'month',
+    description: 'Product description goes here',
     features: [
-      'Feature 1',
+      'Feature 1', 
       'Feature 2', 
       'Feature 3'
     ]

@@ -74,7 +74,8 @@ export default function Checkout({ data, isEditable = false, onUpdate, themeStyl
                 type="text"
                 value={data.productName}
                 onChange={(e) => handleUpdate('productName', e.target.value)}
-                className="text-2xl md:text-3xl font-bold text-gray-900 bg-transparent border-b-2 border-gray-300 focus:border-blue-500 outline-none text-center w-full mb-4"
+                className="text-2xl md:text-3xl font-bold text-gray-900 bg-transparent border-b-2 border-gray-300 outline-none text-center w-full mb-4"
+                style={{ borderColor: isEditable ? '#d1d5db' : 'transparent' }}
                 placeholder="Product name..."
               />
             ) : (
@@ -84,28 +85,30 @@ export default function Checkout({ data, isEditable = false, onUpdate, themeStyl
             )}
             
             <div className="flex items-center justify-center mb-4">
-              <span className="text-4xl font-bold text-blue-600">
+              <span className="text-4xl font-bold" style={{ color: isEditable ? '#2563eb' : 'var(--pp-cta-bg)' }}>
                 {data.currency === 'USD' ? '$' : data.currency}
                 {isEditable ? (
                   <input
                     type="number"
                     value={data.price}
                     onChange={(e) => handleUpdate('price', parseFloat(e.target.value) || 0)}
-                    className="bg-transparent border-b border-blue-300 focus:border-blue-500 outline-none w-20 text-center"
+                    className="bg-transparent border-b focus:border-blue-500 outline-none w-20 text-center"
+                    style={{ borderColor: isEditable ? '#93c5fd' : 'var(--pp-cta-bg)' }}
                     step="0.01"
                   />
                 ) : (
                   data.price
                 )}
               </span>
-              <span className="text-gray-600 ml-2">/month</span>
+              <span className="text-gray-600 ml-2">/ {data.interval}</span>
             </div>
             
             {isEditable ? (
               <textarea
                 value={data.description}
                 onChange={(e) => handleUpdate('description', e.target.value)}
-                className="text-gray-600 bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none w-full text-center resize-none"
+                className="text-gray-600 bg-transparent border-b border-gray-200 outline-none w-full text-center resize-none"
+                style={{ borderColor: isEditable ? '#d1d5db' : 'transparent' }}
                 placeholder="Product description..."
                 rows={2}
               />
@@ -128,7 +131,8 @@ export default function Checkout({ data, isEditable = false, onUpdate, themeStyl
                         type="text"
                         value={feature}
                         onChange={(e) => handleFeatureUpdate(index, e.target.value)}
-                        className="text-gray-700 bg-transparent border-b border-gray-200 focus:border-blue-500 outline-none flex-1"
+                        className="text-gray-700 bg-transparent border-b border-gray-200 outline-none flex-1"
+                        style={{ borderColor: isEditable ? '#d1d5db' : 'transparent' }}
                         placeholder="Feature..."
                       />
                       <button
@@ -148,7 +152,8 @@ export default function Checkout({ data, isEditable = false, onUpdate, themeStyl
             {isEditable && (
               <button
                 onClick={addFeature}
-                className="mt-4 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                className="mt-4 text-sm font-medium"
+                style={{ color: 'var(--pp-cta-bg)' }}
               >
                 + Add Feature
               </button>
@@ -165,7 +170,7 @@ export default function Checkout({ data, isEditable = false, onUpdate, themeStyl
                   color: 'var(--pp-cta-text)' 
                 }}
               >
-                Buy PitchPilot Premium – $1
+                Get {data.productName} – ${data.price}
               </button>
             )}
             
@@ -175,12 +180,14 @@ export default function Checkout({ data, isEditable = false, onUpdate, themeStyl
                   type="text"
                   value={data.stripePriceId || ''}
                   onChange={(e) => handleUpdate('stripePriceId', e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 focus:border-blue-500 outline-none"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 outline-none"
+                  style={{ borderColor: '#d1d5db' }}
                   placeholder="Stripe Price ID (optional)"
                 />
                 <button
                   onClick={handleCheckout}
-                  className="w-full bg-blue-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors shadow-lg"
+                  className="w-full py-4 px-6 rounded-lg font-semibold text-lg transition-colors shadow-lg"
+                  style={{ backgroundColor: 'var(--pp-cta-bg)', color: 'var(--pp-cta-text)' }}
                 >
                   Preview Checkout
                 </button>
