@@ -36,7 +36,10 @@ export default function DemoPage() {
   // Video state
   const [videoExists, setVideoExists] = useState(false);
   const [checkingVideo, setCheckingVideo] = useState(true);
-  const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
+  const [videoSrc, setVideoSrc] = useState<string>("");
+  const [generating, setGenerating] = useState(false);
+  const [tapToPlay, setTapToPlay] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [videoProgress, setVideoProgress] = useState<string>('');
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
@@ -370,11 +373,13 @@ export default function DemoPage() {
       return;
     }
 
-    setIsGeneratingVideo(true);
-    setVideoProgress('Starting video generation...');
-    setError(null);
-
     try {
+      setGenerating(true);
+      setIsGeneratingVideo(true);
+      setVideoProgress('Starting video generation...');
+      setError(null);
+      setTapToPlay(false);
+
       const response = await fetch('/api/video/generate', {
         method: 'POST',
         headers: {
@@ -383,43 +388,43 @@ export default function DemoPage() {
         body: JSON.stringify({ script: agentResult.script }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate video');
+      const data = await response.json();
+
+      if (!response.ok || !data?.ok || !data?.file) {
+        throw new Error(data?.error || data?.message || 'Video generation failed');
       }
 
-      const result = await response.json();
-      if (result.ok && result.file) {
-        setGeneratedVideoUrl(result.file);
-        
-        // Show overlay fallback toast if needed
-        if (result.overlayDisabled) {
-          setVideoProgress('Overlay disabled (using safe fallback). Video rendered successfully.');
-          // Show toast notification
-          const toast = document.createElement('div');
-          toast.className = 'fixed top-4 right-4 bg-orange-100 border border-orange-400 text-orange-700 px-4 py-3 rounded shadow-lg z-50';
-          toast.innerHTML = 'Overlay disabled (using safe fallback). Video rendered successfully.';
-          document.body.appendChild(toast);
-          setTimeout(() => {
-            document.body.removeChild(toast);
-          }, 5000);
-        } else {
-          setVideoProgress('Video generated successfully!');
-        }
-        
-        // Switch video source and play
-        if (videoRef) {
-          videoRef.src = result.file;
-          videoRef.load();
-          setTimeout(() => {
-            videoRef?.play().catch(console.error);
-          }, 500);
-        }
+      // Show overlay fallback toast if needed
+      if (data.overlayDisabled) {
+        setVideoProgress('Overlay disabled (using safe fallback). Video rendered successfully.');
+        const toast = document.createElement('div');
+        toast.className = 'fixed top-4 right-4 bg-orange-100 border border-orange-400 text-orange-700 px-4 py-3 rounded shadow-lg z-50';
+        toast.innerHTML = 'Overlay disabled (using safe fallback). Video rendered successfully.';
+        document.body.appendChild(toast);
+        setTimeout(() => {
+          document.body.removeChild(toast);
+        }, 5000);
+      } else {
+        setVideoProgress('Video generated successfully!');
+      }
+
+      setVideoSrc(data.file);
+      setGeneratedVideoUrl(data.file);
+      await new Promise((r) => setTimeout(r, 50)); // allow DOM to bind src
+
+      const el = videoRef.current;
+      if (el) {
+        // autoplay-safe settings
+        el.muted = true;
+        (el as any).playsInline = true;
+        el.load();
+        el.play().catch(() => setTapToPlay(true));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate video');
       setVideoProgress('');
     } finally {
+      setGenerating(false);
       setIsGeneratingVideo(false);
     }
   };
@@ -430,7 +435,7 @@ export default function DemoPage() {
 
     const eventSource = new EventSource('/api/mesh/stream');
     
-    eventSource.onmessage = (event) => {
+    eventSource.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
         
@@ -444,17 +449,23 @@ export default function DemoPage() {
             setVideoProgress(message || `Stage: ${stage}`);
           }
         } else if (data.topic === 'pitchpilot/video/done' && data.payload) {
-          setGeneratedVideoUrl(data.payload.url);
+          const fileUrl = data.payload.file || data.payload.url;
+          setGeneratedVideoUrl(fileUrl);
           setVideoProgress('Video completed!');
           setIsGeneratingVideo(false);
           
-          // Switch video source and play
-          if (videoRef) {
-            videoRef.src = data.payload.url;
-            videoRef.load();
+          // If videoSrc is empty, set it and attempt play
+          if (!videoSrc && fileUrl) {
+            setVideoSrc(fileUrl);
             setTimeout(() => {
-              videoRef?.play().catch(console.error);
-            }, 500);
+              const el = videoRef.current;
+              if (el) {
+                el.muted = true;
+                (el as any).playsInline = true;
+                el.load();
+                el.play().catch(() => setTapToPlay(true));
+              }
+            }, 50);
           }
         }
       } catch (error) {
@@ -624,15 +635,40 @@ export default function DemoPage() {
                     )}
                     
                     {/* Video Element */}
-                    <video
-                      ref={setVideoRef}
-                      className="w-full rounded border"
-                      controls
-                      style={{ display: (videoExists || generatedVideoUrl) ? 'block' : 'none' }}
-                    >
-                      <source src={generatedVideoUrl || "/video/demo.mp4"} type="video/mp4" />
-                      Your browser does not support the video tag.
-                    </video>
+                    <div className="space-y-2">
+                      <video
+                        ref={videoRef}
+                        src={videoSrc || (videoExists ? "/video/demo.mp4" : "")}
+                        controls
+                        muted
+                        // @ts-expect-error: playsInline is valid
+                        playsInline
+                        preload="auto"
+                        className="w-full aspect-video rounded-xl shadow"
+                        style={{ display: (videoSrc || videoExists || generatedVideoUrl) ? 'block' : 'none' }}
+                      />
+                      {tapToPlay && (
+                        <button
+                          onClick={() => {
+                            setTapToPlay(false);
+                            videoRef.current?.play().catch(() => setTapToPlay(true));
+                          }}
+                          className="px-3 py-2 rounded-lg border bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                        >
+                          Tap to play video
+                        </button>
+                      )}
+                      {videoSrc && (
+                        <a 
+                          href={videoSrc} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="text-sm underline text-blue-600 hover:text-blue-800"
+                        >
+                          Open generated MP4 in a new tab
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
