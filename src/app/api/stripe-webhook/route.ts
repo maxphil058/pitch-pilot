@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { PrismaClient } from '@prisma/client';
+import { publishEvent } from '@/lib/solace';
 
 export const runtime = 'nodejs';
 
@@ -65,6 +66,33 @@ export async function POST(request: NextRequest) {
           },
         });
         console.log('Transaction recorded:', { amount, currency });
+
+        // Publish checkout success event
+        await publishEvent({
+          topic: 'pitchpilot/checkout/success',
+          payload: { amount, currency: currency.toUpperCase() }
+        });
+
+        // Call Analytics agent (non-blocking)
+        try {
+          const analyticsResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001'}/api/agents/analytics/log`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              type: 'checkout_success',
+              data: { amount, currency: currency.toUpperCase() }
+            }),
+          });
+          
+          if (!analyticsResponse.ok) {
+            console.error('Analytics agent call failed:', analyticsResponse.status);
+          }
+        } catch (analyticsError) {
+          console.error('Failed to call analytics agent:', analyticsError);
+        }
+
       } catch (error) {
         console.error('Failed to record transaction:', error);
       }

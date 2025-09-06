@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [checkoutToast, setCheckoutToast] = useState<{ amount: number; currency: string } | null>(null);
 
   const [agentActivities, setAgentActivities] = useState<AgentActivity[]>([
     {
@@ -104,6 +105,20 @@ export default function DashboardPage() {
         } else {
           // Regular mesh event
           setMeshEvents(prev => [data, ...prev.slice(0, 199)]); // Cap at 200 events
+          
+          // Handle checkout success events
+          if (data.topic === 'pitchpilot/checkout/success' && data.payload) {
+            const { amount, currency } = data.payload;
+            setCheckoutToast({ amount: amount / 100, currency }); // Convert from cents to dollars
+            
+            // Auto-hide toast after 3 seconds
+            setTimeout(() => {
+              setCheckoutToast(null);
+            }, 3000);
+            
+            // Refresh transactions to update revenue
+            fetchTransactions();
+          }
         }
       } catch (error) {
         console.error('Error parsing mesh event:', error);
@@ -204,6 +219,21 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Checkout Success Toast */}
+      {checkoutToast && (
+        <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg animate-pulse">
+          <div className="flex items-center">
+            <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <p className="font-semibold">Payment Received!</p>
+              <p className="text-sm">{formatCurrency(checkoutToast.amount, checkoutToast.currency)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -350,6 +380,24 @@ export default function DashboardPage() {
         <div className="mt-8 bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Demo Actions</h2>
           <div className="flex flex-wrap gap-4">
+            <button 
+              onClick={async () => {
+                try {
+                  const response = await fetch('/api/dev/simulate-sale', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                  });
+                  if (!response.ok) {
+                    console.error('Failed to simulate sale');
+                  }
+                } catch (error) {
+                  console.error('Error simulating sale:', error);
+                }
+              }}
+              className="bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700 transition-colors"
+            >
+              Simulate Sale ($1.00)
+            </button>
             <button 
               onClick={() => fetchTransactions()}
               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
