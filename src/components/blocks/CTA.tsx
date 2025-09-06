@@ -1,12 +1,19 @@
+'use client';
+
 import { CTAData } from '@/lib/funnelSchema';
 
 interface CTAProps {
   data: CTAData;
   isEditable?: boolean;
   onUpdate?: (data: CTAData) => void;
+  themeStyle?: {
+    background?: string;
+    ctaBackground?: string;
+    ctaColor?: string;
+  };
 }
 
-export default function CTA({ data, isEditable = false, onUpdate }: CTAProps) {
+export default function CTA({ data, isEditable = false, onUpdate, themeStyle }: CTAProps) {
   const handleUpdate = (field: keyof CTAData, value: string) => {
     if (onUpdate) {
       onUpdate({ ...data, [field]: value });
@@ -14,7 +21,14 @@ export default function CTA({ data, isEditable = false, onUpdate }: CTAProps) {
   };
 
   const getButtonStyles = (style: string) => {
-    const baseStyles = "px-8 py-4 rounded-lg font-semibold text-lg transition-colors";
+    const baseStyles = "px-8 py-4 rounded-lg font-semibold text-lg transition-opacity hover:opacity-90";
+    
+    // Use CSS variables for theme colors in preview mode
+    if (!isEditable) {
+      return `${baseStyles} pp-cta`;
+    }
+    
+    // Fallback styles for editing mode
     switch (style) {
       case 'primary':
         return `${baseStyles} bg-blue-600 text-white hover:bg-blue-700`;

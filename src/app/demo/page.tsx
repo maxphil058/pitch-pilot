@@ -138,16 +138,20 @@ export default function DemoPage() {
     
     setColorError('');
     
-    // Auto-apply valid theme immediately
-    setFunnel(prev => ({
-      ...prev,
-      theme: {
+    // Auto-apply valid theme immediately with immutable update
+    setFunnel(prev => {
+      const newTheme = {
         mode: themeMode,
         colors: themeMode === 'gradient' ? [normalizedPrimary!, normalizedSecondary || '#8B5CF6'] : [normalizedPrimary!],
         gradientAngle: themeMode === 'gradient' ? gradientAngle : undefined
-      },
-      updatedAt: new Date()
-    }));
+      };
+      
+      return {
+        ...prev,
+        theme: newTheme,
+        updatedAt: new Date()
+      };
+    });
     
     // Emit theme change event
     window.dispatchEvent(new CustomEvent('pitchpilot/ui/done', {
@@ -205,38 +209,43 @@ export default function DemoPage() {
 
   const resetToAITheme = () => {
     setThemeMode('ai');
-    setFunnel(prev => ({
-      ...prev,
-      theme: { mode: 'ai', colors: [] },
-      updatedAt: new Date()
-    }));
+    setFunnel(prev => {
+      const newTheme = { mode: 'ai' as const, colors: [] };
+      return {
+        ...prev,
+        theme: newTheme,
+        updatedAt: new Date()
+      };
+    });
   };
 
   const renderBlock = (block: FunnelBlock, isPreview: boolean = false) => {
-    const finalTheme = getFinalTheme(funnel, agentResult?.tweak);
+    // For preview, theme is derived at preview root level via CSS variables
+    // For editing, still pass themeStyle props for compatibility
+    const finalTheme = isPreview ? null : getFinalTheme(funnel, agentResult?.tweak);
     
     const commonProps = {
       isEditable: !isPreview,
       onUpdate: (data: any) => updateBlock(block.id, data)
     };
 
-    const themeProps = {
+    const themeProps = finalTheme ? {
       themeStyle: {
         background: finalTheme.bg,
         ctaBackground: finalTheme.ctaBg,
         ctaColor: finalTheme.ctaText
       }
-    };
+    } : {};
 
     switch (block.type) {
       case 'hero':
-        return <Hero key={block.id} data={block.data as HeroData} {...commonProps} {...themeProps} />;
+        return <Hero key={`${block.id}-${funnel.updatedAt?.getTime()}`} data={block.data as HeroData} {...commonProps} {...themeProps} />;
       case 'cta':
-        return <CTA key={block.id} data={block.data as CTAData} {...commonProps} {...themeProps} />;
+        return <CTA key={`${block.id}-${funnel.updatedAt?.getTime()}`} data={block.data as CTAData} {...commonProps} {...themeProps} />;
       case 'testimonials':
-        return <Testimonials key={block.id} data={block.data as TestimonialsData} {...commonProps} {...themeProps} />;
+        return <Testimonials key={`${block.id}-${funnel.updatedAt?.getTime()}`} data={block.data as TestimonialsData} {...commonProps} {...themeProps} />;
       case 'checkout':
-        return <Checkout key={block.id} data={block.data as CheckoutData} {...commonProps} {...themeProps} />;
+        return <Checkout key={`${block.id}-${funnel.updatedAt?.getTime()}`} data={block.data as CheckoutData} {...commonProps} {...themeProps} />;
       default:
         return null;
     }
@@ -274,6 +283,10 @@ export default function DemoPage() {
       }
       .pp-hero-bg {
         background: var(--pp-bg);
+      }
+      .preview-root .pp-cta {
+        background: var(--pp-cta-bg) !important;
+        color: var(--pp-cta-text) !important;
       }
     </style>
 </head>
@@ -1363,11 +1376,31 @@ export default function DemoPage() {
                 <p>Add blocks to see preview</p>
               </div>
             ) : (
-              <div className="transform scale-75 origin-top-left w-[133%]">
-                {funnel.blocks
-                  .sort((a, b) => a.order - b.order)
-                  .map(block => renderBlock(block, true))}
-              </div>
+              (() => {
+                // Derive theme on every render for live preview
+                const finalTheme = getFinalTheme(funnel, agentResult?.tweak);
+                console.log('Live Preview Theme Update:', { 
+                  funnelTheme: funnel.theme, 
+                  finalTheme, 
+                  timestamp: Date.now() 
+                });
+                
+                return (
+                  <div 
+                    className="transform scale-75 origin-top-left w-[133%] preview-root"
+                    style={{
+                      background: finalTheme.bg,
+                      '--pp-cta-bg': finalTheme.ctaBg,
+                      '--pp-cta-text': finalTheme.ctaText,
+                      '--pp-bg': finalTheme.bg
+                    } as React.CSSProperties}
+                  >
+                    {funnel.blocks
+                      .sort((a, b) => a.order - b.order)
+                      .map(block => renderBlock(block, true))}
+                  </div>
+                );
+              })()
             )}
           </div>
         </div>

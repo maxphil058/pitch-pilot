@@ -1,12 +1,19 @@
+'use client';
+
 import { HeroData } from '@/lib/funnelSchema';
 
 interface HeroProps {
   data: HeroData;
   isEditable?: boolean;
   onUpdate?: (data: HeroData) => void;
+  themeStyle?: {
+    background?: string;
+    ctaBackground?: string;
+    ctaColor?: string;
+  };
 }
 
-export default function Hero({ data, isEditable = false, onUpdate }: HeroProps) {
+export default function Hero({ data, isEditable = false, onUpdate, themeStyle }: HeroProps) {
   const handleUpdate = (field: keyof HeroData, value: string) => {
     if (onUpdate) {
       onUpdate({ ...data, [field]: value });
@@ -14,7 +21,10 @@ export default function Hero({ data, isEditable = false, onUpdate }: HeroProps) 
   };
 
   return (
-    <section className="relative bg-gradient-to-r from-blue-600 to-purple-700 text-white py-20 px-4">
+    <section 
+      className={`relative text-white py-20 px-4 ${!isEditable ? 'pp-hero-bg' : 'bg-gradient-to-r from-blue-600 to-purple-700'}`}
+      style={!isEditable && themeStyle?.background ? { background: themeStyle.background } : undefined}
+    >
       {data.backgroundImage && (
         <div 
           className="absolute inset-0 bg-cover bg-center opacity-30"
@@ -62,7 +72,7 @@ export default function Hero({ data, isEditable = false, onUpdate }: HeroProps) 
           ) : (
             <a
               href={data.ctaLink}
-              className="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-colors inline-block"
+              className={`px-8 py-4 rounded-lg font-semibold text-lg transition-opacity hover:opacity-90 inline-block ${!isEditable ? 'pp-cta' : 'bg-white text-blue-600 hover:bg-gray-100'}`}
             >
               {data.ctaText}
             </a>

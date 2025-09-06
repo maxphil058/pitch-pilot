@@ -1,12 +1,19 @@
+'use client';
+
 import { CheckoutData } from '@/lib/funnelSchema';
 
 interface CheckoutProps {
   data: CheckoutData;
   isEditable?: boolean;
   onUpdate?: (data: CheckoutData) => void;
+  themeStyle?: {
+    background?: string;
+    ctaBackground?: string;
+    ctaColor?: string;
+  };
 }
 
-export default function Checkout({ data, isEditable = false, onUpdate }: CheckoutProps) {
+export default function Checkout({ data, isEditable = false, onUpdate, themeStyle }: CheckoutProps) {
   const handleUpdate = (field: keyof CheckoutData, value: string | number | string[]) => {
     if (onUpdate) {
       onUpdate({ ...data, [field]: value });
@@ -152,7 +159,7 @@ export default function Checkout({ data, isEditable = false, onUpdate }: Checkou
             {!isEditable && (
               <button
                 onClick={handleCheckout}
-                className="w-full bg-blue-600 text-white py-4 px-6 rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors shadow-lg"
+                className={`w-full py-4 px-6 rounded-lg font-semibold text-lg transition-opacity hover:opacity-90 shadow-lg ${!isEditable ? 'pp-cta' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
               >
                 Buy PitchPilot Premium – $1
               </button>
