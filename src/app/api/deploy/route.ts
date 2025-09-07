@@ -45,7 +45,10 @@ export async function POST(request: NextRequest) {
 
 // Background deployment function
 async function deployToNetlify(html: string, siteName?: string, assets?: Array<{ path: string; content: string | ArrayBuffer | Uint8Array }>) {
-  const siteData = {
+  const siteData: {
+    name: string;
+    files: Record<string, string>;
+  } = {
     name: siteName || `pitchpilot-${Date.now().toString(36)}`,
     files: {
       'index.html': html
@@ -54,7 +57,16 @@ async function deployToNetlify(html: string, siteName?: string, assets?: Array<{
 
   if (assets && assets.length > 0) {
     for (const asset of assets) {
-      siteData.files[asset.path] = asset.content;
+      // Convert content to string if it's not already
+      let content: string;
+      if (typeof asset.content === 'string') {
+        content = asset.content;
+      } else if (asset.content instanceof ArrayBuffer) {
+        content = btoa(String.fromCharCode(...new Uint8Array(asset.content)));
+      } else {
+        content = btoa(String.fromCharCode(...asset.content));
+      }
+      siteData.files[asset.path] = content;
     }
   }
 
