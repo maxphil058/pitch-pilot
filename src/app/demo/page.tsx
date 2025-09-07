@@ -36,6 +36,8 @@ export default function DemoPage() {
   const [idea, setIdea] = useState('');
   const [persona, setPersona] = useState('');
   const [agentResult, setAgentResult] = useState<AgentResult | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -270,8 +272,7 @@ export default function DemoPage() {
     return div.innerHTML;
   };
 
-  const exportHTML = () => {
-    const finalTheme = getFinalTheme(funnel, agentResult?.tweak);
+  const generateExportHTML = (finalTheme: any) => {
     
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -430,15 +431,56 @@ export default function DemoPage() {
 </body>
 </html>`;
 
+    return htmlContent;
+  };
+
+  const exportHTML = () => {
+    const finalTheme = getFinalTheme(funnel, agentResult?.tweak);
+    const htmlContent = generateExportHTML(finalTheme);
+    
+    // Download the file
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${funnel.name.replace(/\s+/g, '-').toLowerCase()}.html`;
+    a.download = `${funnel.name.toLowerCase().replace(/\s+/g, '-')}-funnel.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const publishLive = async () => {
+    setIsPublishing(true);
+    setPublishedUrl(null);
+    
+    try {
+      const finalTheme = getFinalTheme(funnel, agentResult?.tweak);
+      const htmlContent = generateExportHTML(finalTheme);
+      
+      const response = await fetch('/api/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          htmlContent,
+          siteName: `funnel-${Date.now()}`
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setPublishedUrl(result.url);
+        // Auto-open the live URL in new tab
+        window.open(result.url, '_blank');
+      } else {
+        alert(`Publish failed: ${result.error}`);
+      }
+    } catch (error: any) {
+      alert(`Publish error: ${error.message}`);
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   // Drag and drop handlers
@@ -966,7 +1008,27 @@ export default function DemoPage() {
               >
                 Export HTML
               </button>
+              <button
+                onClick={publishLive}
+                disabled={isPublishing}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isPublishing ? 'Publishing...' : 'Publish Live'}
+              </button>
             </div>
+            {publishedUrl && (
+              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-green-800 font-semibold mb-2">✅ Published Successfully!</p>
+                <a 
+                  href={publishedUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-green-600 hover:text-green-800 underline break-all text-sm"
+                >
+                  {publishedUrl}
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </div>
