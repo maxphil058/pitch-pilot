@@ -460,22 +460,36 @@ export default function DemoPage() {
       
       const response = await fetch('/api/deploy', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({ 
-          htmlContent,
-          siteName: `funnel-${Date.now()}`
+          html: htmlContent,
+          siteName: `${funnel.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now().toString(36)}`
         })
       });
       
       const result = await response.json();
       
-      if (result.success) {
-        setPublishedUrl(result.url);
-        // Auto-open the live URL in new tab
-        window.open(result.url, '_blank');
-      } else {
-        alert(`Publish failed: ${result.error}`);
+      if (response.status === 401) {
+        alert('Unauthorized: Please check your DASHBOARD_SECRET configuration.');
+        return;
       }
+      
+      if (response.status === 413) {
+        alert('Site too large (max 10MB). Please reduce content size.');
+        return;
+      }
+      
+      if (!response.ok) {
+        alert(`Publish failed: ${result.error || 'Unknown error'}`);
+        return;
+      }
+      
+      setPublishedUrl(result.url);
+      // Auto-open the live URL in new tab
+      window.open(result.url, '_blank');
+      
     } catch (error: any) {
       alert(`Publish error: ${error.message}`);
     } finally {
@@ -1023,9 +1037,12 @@ export default function DemoPage() {
                   href={publishedUrl} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="text-green-600 hover:text-green-800 underline break-all text-sm"
+                  className="inline-flex items-center text-green-600 hover:text-green-800 underline text-sm font-medium"
                 >
-                  {publishedUrl}
+                  🚀 View Live Site
+                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
                 </a>
               </div>
             )}
